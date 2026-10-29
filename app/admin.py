@@ -663,6 +663,27 @@ def xdr_assessments():
     )
 
 
+@bp.get("/xdr/feed")
+@permission_required("security.dashboard")
+def xdr_feed():
+    if not current_app.config.get("XDR_ENABLED"):
+        return jsonify(assessments=[], xdr_enabled=False)
+    from . import ai_xdr
+    try:
+        limit = min(max(request.args.get("limit", 50, type=int), 1), 100)
+        rows = ai_xdr.list_assessments(limit)
+        safe_rows = []
+        for r in rows:
+            item = dict(r)
+            for k in ("created_at", "decided_at", "first_seen", "last_seen"):
+                if item.get(k) is not None:
+                    item[k] = str(item[k])
+            safe_rows.append(item)
+        return jsonify(assessments=safe_rows, xdr_enabled=True)
+    except Exception as exc:
+        return jsonify(assessments=[], error=str(exc)), 500
+
+
 @bp.post("/xdr/assessments/<assessment_id>/decision")
 @permission_required("security.dashboard")
 def decide_xdr_assessment(assessment_id):

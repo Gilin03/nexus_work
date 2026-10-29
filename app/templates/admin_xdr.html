@@ -31,7 +31,55 @@
       margin: 0;
     }
 
-    /* 상단 퀵 필터 바 (탭 버튼) */
+    /* 실시간 스트리밍 펄스 배지 */
+    .xdr-live-badge-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #166534;
+      transition: all 0.2s ease;
+    }
+    .xdr-live-badge-wrap.is-paused {
+      background: #fefce8;
+      border-color: #fef08a;
+      color: #854d0e;
+    }
+    .live-pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #16a34a;
+      box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+      animation: liveDotPulse 2s infinite;
+    }
+    .xdr-live-badge-wrap.is-paused .live-pulse-dot {
+      background: #ca8a04;
+      box-shadow: none;
+      animation: none;
+    }
+    @keyframes liveDotPulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+    }
+
+    /* 신규 추가 행 플래시 애니메이션 */
+    @keyframes rowNewFlash {
+      0% { background-color: #fef08a; }
+      50% { background-color: #fef9c3; }
+      100% { background-color: transparent; }
+    }
+    .row-new-flash td {
+      animation: rowNewFlash 3s ease-out;
+    }
+
+    /* 상단 퀵 필터 바 */
     .filter-bar {
       display: flex;
       align-items: center;
@@ -72,7 +120,7 @@
       width: 100%;
       border: 1px solid #e2e8f0;
       border-radius: 10px;
-      overflow: hidden;
+      overflow-x: hidden;
       background: #ffffff;
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
     }
@@ -109,7 +157,7 @@
     .col-ai     { width: 38%; }
     .col-action { width: 20%; }
 
-    /* 세련된 상태 & 판정 배지 */
+    /* 상태 & 판정 배지 */
     .xdr-tag {
       display: inline-flex;
       align-items: center;
@@ -134,11 +182,7 @@
       border: 1px solid #e2e8f0;
     }
     .tag-pending {
-      background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; animation: pulse-orange 2s infinite;
-    }
-    @keyframes pulse-orange {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.75; }
+      background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa;
     }
     .tag-done { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
 
@@ -158,15 +202,12 @@
       overflow: hidden;
       display: inline-block;
     }
-    .gauge-fill {
-      height: 100%;
-      border-radius: 4px;
-    }
+    .gauge-fill { height: 100%; border-radius: 4px; }
     .fill-high { background: #dc2626; }
     .fill-mid  { background: #d97706; }
     .fill-low  { background: #16a34a; }
 
-    /* AI 판정 근거 (Reasoning) 세련된 블록 */
+    /* AI 판정 근거 카드 */
     .ai-reason-card {
       margin-top: 8px;
       background: #f8fafc;
@@ -181,7 +222,6 @@
     .ai-reason-card.is-suspicious { border-left-color: #f59e0b; background: #fffdfa; }
     .ai-reason-card.is-benign { border-left-color: #22c55e; background: #fafdfb; }
 
-    /* 권고 조치 칩 */
     .rec-chip {
       display: inline-flex;
       align-items: center;
@@ -240,7 +280,16 @@
       <h1>🛡️ AI-XDR 보안 침해 판정 센터</h1>
       <p>엔비디아 클라우드 AI 모델이 실시간 보안 이벤트 메타데이터를 기반으로 공격 체인을 심층 분석합니다.</p>
     </div>
-    <div style="display: flex; gap: 0.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <!-- 실시간 라이브 감시 배지 -->
+      <div class="xdr-live-badge-wrap" id="xdr-live-status" title="실시간 AI-XDR 감시 상태">
+        <span class="live-pulse-dot" id="xdr-dot"></span>
+        <span id="xdr-live-text">실시간 감시 중 (3초)</span>
+        <button type="button" class="btn small" id="xdr-toggle-btn" style="padding: 2px 8px; font-size: 0.72rem; margin-left: 4px; border-radius: 12px; border: 1px solid #cbd5e1;">
+          ⏸ 일시정지
+        </button>
+      </div>
+
       <a class="btn" href="{{ url_for('admin.audit_log') }}" style="font-size: 0.84rem; padding: 0.45rem 0.85rem; border-radius: 6px;">📊 통합 보안 대시보드</a>
       <a class="btn" href="{{ url_for('admin.list_blocked_ips') }}" style="font-size: 0.84rem; padding: 0.45rem 0.85rem; border-radius: 6px;">🚫 차단 IP 관리</a>
     </div>
@@ -250,21 +299,20 @@
   {% if unavailable %}<p class="alert" role="alert">AI-XDR 저장소를 사용할 수 없습니다. 테이블 migration 상태를 확인하세요.</p>{% endif %}
   {% if result %}<p class="notice" role="status">결정이 기록되었습니다: {{ result }}</p>{% endif %}
 
-  {% if assessments %}
-  <!-- 퀵 필터 칩 바 (JS 실시간 필터링) -->
+  <!-- 퀵 필터 칩 바 -->
   <div class="filter-bar">
     <span style="font-size: 0.8rem; font-weight: 700; color: #64748b; margin-right: 4px;">빠른 필터:</span>
     <button class="filter-btn active" onclick="filterXDR('all', this)">
-      전체 보기 <span class="count-pill">{{ assessments | length }}</span>
+      전체 보기 <span class="count-pill" id="cnt-all">{{ assessments | length }}</span>
     </button>
     <button class="filter-btn" onclick="filterXDR('MALICIOUS', this)">
-      🚨 악성 판정 <span class="count-pill">{{ assessments | selectattr('verdict', 'equalto', 'MALICIOUS') | list | length }}</span>
+      🚨 악성 판정 <span class="count-pill" id="cnt-malicious">{{ assessments | selectattr('verdict', 'equalto', 'MALICIOUS') | list | length }}</span>
     </button>
     <button class="filter-btn" onclick="filterXDR('SUSPICIOUS', this)">
-      ⚠️ 의심 활동 <span class="count-pill">{{ assessments | selectattr('verdict', 'equalto', 'SUSPICIOUS') | list | length }}</span>
+      ⚠️ 의심 활동 <span class="count-pill" id="cnt-suspicious">{{ assessments | selectattr('verdict', 'equalto', 'SUSPICIOUS') | list | length }}</span>
     </button>
     <button class="filter-btn" onclick="filterXDR('PENDING', this)">
-      ⏳ 승인 대기중 <span class="count-pill">{{ assessments | selectattr('status', 'equalto', 'PENDING') | list | length }}</span>
+      ⏳ 승인 대기중 <span class="count-pill" id="cnt-pending">{{ assessments | selectattr('status', 'equalto', 'PENDING') | list | length }}</span>
     </button>
   </div>
 
@@ -280,9 +328,10 @@
           <th class="col-action">관리자 조치 (Action)</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="xdrTableBody">
+      {% if assessments %}
       {% for a in assessments %}
-        <tr class="xdr-row" data-verdict="{{ a.verdict }}" data-status="{{ a.status }}">
+        <tr class="xdr-row" id="row-{{ a.assessment_id }}" data-id="{{ a.assessment_id }}" data-verdict="{{ a.verdict }}" data-status="{{ a.status }}">
           <!-- 1. 시각 및 상태 -->
           <td class="col-time">
             <div style="font-weight: 700; color: #0f172a; font-size: 0.84rem;">
@@ -338,7 +387,6 @@
           <!-- 4. AI 침해 분석 & 근거 요약 -->
           <td class="col-ai">
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <!-- 판정 배지 -->
               {% if a.verdict == 'MALICIOUS' %}
                 <span class="xdr-tag tag-malicious">🚨 MALICIOUS (악성 침해)</span>
               {% elif a.verdict == 'SUSPICIOUS' %}
@@ -349,7 +397,6 @@
                 <span class="xdr-tag tag-review">🔍 REVIEW (심층 검토)</span>
               {% endif %}
 
-              <!-- 위협 점수 게이지 바 -->
               <span class="threat-gauge">
                 <span class="gauge-track">
                   {% set score = a.threat_score or 0 %}
@@ -365,7 +412,6 @@
                 (신뢰도 {{ '%.0f'|format((a.confidence or 0)*100) }}%)
               </span>
 
-              <!-- 권고 조치 -->
               {% if a.recommended_actions %}
                 {% for act in a.recommended_actions %}
                   {% if act == 'block_ip' %}
@@ -381,7 +427,6 @@
               {% endif %}
             </div>
 
-            <!-- AI 판정 이유 카드 (스타일 강조) -->
             <div class="ai-reason-card {% if a.verdict == 'MALICIOUS' %}is-malicious{% elif a.verdict == 'SUSPICIOUS' %}is-suspicious{% elif a.verdict == 'BENIGN' %}is-benign{% endif %}">
               <strong>💡 AI 판정 근거:</strong> {{ a.reasoning }}
             </div>
@@ -431,31 +476,252 @@
           </td>
         </tr>
       {% endfor %}
+      {% else %}
+        <tr id="emptyRow"><td colspan="5" class="hint" style="padding: 2.5rem; text-align: center;">표시할 AI-XDR 평가 기록이 없습니다.</td></tr>
+      {% endif %}
       </tbody>
     </table>
   </div>
 
-  <!-- 실시간 필터 스크립트 -->
+  <!-- 실시간 스트리밍 & 필터 JavaScript -->
   <script>
-    function filterXDR(type, btn) {
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+    var currentFilter = 'all';
+    var isLivePaused = false;
+    var liveTimer = null;
+    var csrfToken = "{{ csrf_token() }}";
 
-      const rows = document.querySelectorAll('.xdr-row');
-      rows.forEach(row => {
-        if (type === 'all') {
+    function filterXDR(type, btn) {
+      currentFilter = type;
+      document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+
+      applyFilter();
+    }
+
+    function applyFilter() {
+      var rows = document.querySelectorAll('.xdr-row');
+      rows.forEach(function(row) {
+        if (currentFilter === 'all') {
           row.style.display = '';
-        } else if (type === 'PENDING') {
+        } else if (currentFilter === 'PENDING') {
           row.style.display = (row.dataset.status === 'PENDING') ? '' : 'none';
         } else {
-          row.style.display = (row.dataset.verdict === type) ? '' : 'none';
+          row.style.display = (row.dataset.verdict === currentFilter) ? '' : 'none';
         }
       });
     }
-  </script>
 
-  {% else %}
-    <p class="hint" style="padding: 2rem; text-align: center;">표시할 AI-XDR 평가 기록이 없습니다.</p>
-  {% endif %}
+    function updateCounts() {
+      var rows = Array.from(document.querySelectorAll('.xdr-row'));
+      var allCount = rows.length;
+      var malCount = rows.filter(function(r) { return r.dataset.verdict === 'MALICIOUS'; }).length;
+      var susCount = rows.filter(function(r) { return r.dataset.verdict === 'SUSPICIOUS'; }).length;
+      var penCount = rows.filter(function(r) { return r.dataset.status === 'PENDING'; }).length;
+
+      var elAll = document.getElementById('cnt-all');
+      var elMal = document.getElementById('cnt-malicious');
+      var elSus = document.getElementById('cnt-suspicious');
+      var elPen = document.getElementById('cnt-pending');
+
+      if (elAll) elAll.textContent = allCount;
+      if (elMal) elMal.textContent = malCount;
+      if (elSus) elSus.textContent = susCount;
+      if (elPen) elPen.textContent = penCount;
+    }
+
+    function renderAssessmentRow(a) {
+      var timeStr = (a.last_seen_kst || a.first_seen_kst || '').replace(' KST', '');
+      var statusBadge = (a.status === 'PENDING')
+        ? '<span class="xdr-tag tag-pending">⏳ 승인 대기</span>'
+        : '<span class="xdr-tag tag-done">✓ ' + (a.status || '') + '</span>';
+
+      var ticketStr = '';
+      if (a.ticket_ids && a.ticket_ids.length) {
+        ticketStr = '#' + a.ticket_ids.join(', ');
+      } else if (a.incident_ticket_id) {
+        ticketStr = '#NX-DB-' + String(a.incident_ticket_id).padStart(6, '0');
+      }
+
+      var userTags = '';
+      if (a.user_names && a.user_names.length) {
+        userTags = a.user_names.map(function(u) { return '<span class="xdr-tag tag-user">👤 ' + u + '</span>'; }).join(' ');
+      } else {
+        userTags = '<span style="font-size: 0.78rem; color: #94a3b8;">(미인증 세션)</span>';
+      }
+
+      var ruleTags = (a.rule_ids || []).map(function(rid) {
+        return '<span class="xdr-tag tag-rule">' + rid + '</span>';
+      }).join(' ');
+
+      var verdictTag = '';
+      if (a.verdict === 'MALICIOUS') verdictTag = '<span class="xdr-tag tag-malicious">🚨 MALICIOUS (악성 침해)</span>';
+      else if (a.verdict === 'SUSPICIOUS') verdictTag = '<span class="xdr-tag tag-suspicious">⚠️ SUSPICIOUS (의심)</span>';
+      else if (a.verdict === 'BENIGN') verdictTag = '<span class="xdr-tag tag-benign">✅ BENIGN (정상 활동)</span>';
+      else verdictTag = '<span class="xdr-tag tag-review">🔍 REVIEW (심층 검토)</span>';
+
+      var score = a.threat_score || 0;
+      var fillClass = (score >= 70) ? 'fill-high' : ((score >= 40) ? 'fill-mid' : 'fill-low');
+      var scoreColor = (score >= 70) ? '#dc2626' : ((score >= 40) ? '#d97706' : '#16a34a');
+      var confPct = Math.round((a.confidence || 0) * 100);
+
+      var recHtml = '';
+      if (a.recommended_actions && a.recommended_actions.length) {
+        recHtml = a.recommended_actions.map(function(act) {
+          if (act === 'block_ip') return '<span class="rec-chip">🚫 권고: IP 즉시 차단</span>';
+          if (act === 'notify_only') return '<span class="rec-chip" style="background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe;">📢 권고: 관제 알림</span>';
+          return '<span class="xdr-tag" style="background:#f8fafc; color:#475569;">권고: ' + act + '</span>';
+        }).join(' ');
+      }
+
+      var autoCand = (a.response_result && a.response_result.auto_candidate)
+        ? '<span class="xdr-tag" style="background:#fef2f2; color:#b91c1c; border: 1px solid #fecaca; font-size: 0.72rem;">⚡ 자동 차단 후보</span>'
+        : '';
+
+      var reasonCardClass = (a.verdict === 'MALICIOUS') ? 'is-malicious' : ((a.verdict === 'SUSPICIOUS') ? 'is-suspicious' : 'is-benign');
+
+      var actionHtml = '';
+      if (a.status === 'PENDING') {
+        var decideUrl = '/admin/xdr/assessments/' + encodeURIComponent(a.assessment_id) + '/decision';
+        var blockBtn = (a.recommended_actions && a.recommended_actions.includes('block_ip'))
+          ? '<button class="btn-xdr btn-xdr-block" name="decision" value="' + 'APPROVED_' + 'BLOCK_IP"' + (a.block_approval_error ? ' disabled title="' + a.block_approval_error + '"' : '') + '>🚫 IP 차단 승인</button>'
+          : '';
+
+        actionHtml = '<form method="post" action="' + decideUrl + '" class="xdr-actions">' +
+          '<input type="hidden" name="csrf_token" value="' + csrfToken + '">' +
+          blockBtn +
+          '<div class="act-btn-row">' +
+            '<button class="btn-xdr btn-xdr-approve" name="decision" value="APPROVED">✓ 일반 승인</button>' +
+            '<button class="btn-xdr btn-xdr-reject" name="decision" value="REJECTED">거부</button>' +
+          '</div>' +
+          '<button class="btn-xdr btn-xdr-fp" name="decision" value="FALSE_POSITIVE">🛡️ 오탐(False Positive) 예외</button>' +
+          (a.block_approval_error ? '<div style="font-size: 0.72rem; color: #dc2626; margin-top: 2px;">⚠️ ' + a.block_approval_error + '</div>' : '') +
+          '</form>';
+      } else {
+        actionHtml = '<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-size: 0.78rem;">' +
+          '<div style="font-weight: 700; color: #334155;">✓ 처리 완료</div>' +
+          '<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 3px;">' + (a.decided_at || '자동/승인 처리됨') + '</div>' +
+          '</div>';
+      }
+
+      var tr = document.createElement('tr');
+      tr.className = 'xdr-row row-new-flash';
+      tr.id = 'row-' + a.assessment_id;
+      tr.dataset.id = a.assessment_id;
+      tr.dataset.verdict = a.verdict || '';
+      tr.dataset.status = a.status || '';
+
+      tr.innerHTML =
+        '<td class="col-time">' +
+          '<div style="font-weight: 700; color: #0f172a; font-size: 0.84rem;">' + timeStr + '</div>' +
+          '<div style="margin-top: 6px;">' + statusBadge + '</div>' +
+          '<div style="margin-top: 6px; font-size: 0.74rem; color: #94a3b8; font-family: monospace;">' + ticketStr + '</div>' +
+        '</td>' +
+        '<td class="col-target">' +
+          '<div style="font-family: ui-monospace, Consolas, monospace; font-weight: 800; color: #0f172a; font-size: 0.92rem; letter-spacing: -0.3px;">' + (a.src_ip || 'IP 미식별') + '</div>' +
+          '<div style="margin-top: 6px;">' + userTags + '</div>' +
+        '</td>' +
+        '<td class="col-rule">' +
+          '<div style="display: flex; gap: 4px; flex-wrap: wrap;">' + ruleTags + '</div>' +
+          '<div style="margin-top: 6px; font-size: 0.82rem; font-weight: 600; color: #1e293b;">' + (a.event_types || []).join(', ') + '</div>' +
+          '<div style="font-size: 0.74rem; color: #64748b; margin-top: 3px;">이벤트 누적 <strong>' + (a.event_count || 1) + '</strong>건</div>' +
+        '</td>' +
+        '<td class="col-ai">' +
+          '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">' +
+            verdictTag +
+            '<span class="threat-gauge">' +
+              '<span class="gauge-track"><span class="gauge-fill ' + fillClass + '" style="width: ' + score + '%;"></span></span>' +
+              '<span style="color: ' + scoreColor + ';">' + score + '점</span>' +
+            '</span>' +
+            '<span style="font-size: 0.76rem; color: #64748b;">(신뢰도 ' + confPct + '%)</span>' +
+            recHtml + autoCand +
+          '</div>' +
+          '<div class="ai-reason-card ' + reasonCardClass + '">' +
+            '<strong>💡 AI 판정 근거:</strong> ' + (a.reasoning || '') +
+          '</div>' +
+          '<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 5px;">' +
+            '정책 모드: <code>' + (a.policy_mode || '') + '</code> · 사유: ' + (a.policy_reason || '') +
+          '</div>' +
+        '</td>' +
+        '<td class="col-action">' + actionHtml + '</td>';
+
+      return tr;
+    }
+
+    function pollXDRFeed() {
+      if (isLivePaused) return;
+
+      fetch('/admin/xdr/feed?limit=50', { credentials: 'same-origin' })
+        .then(function(res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function(data) {
+          if (!data || !data.assessments) return;
+
+          var tbody = document.getElementById('xdrTableBody');
+          var emptyRow = document.getElementById('emptyRow');
+          var items = data.assessments;
+
+          var existingIds = new Set();
+          document.querySelectorAll('.xdr-row').forEach(function(r) {
+            existingIds.add(r.dataset.id);
+          });
+
+          // 역순으로 순회하며 신규 항목을 맨 위에 추가
+          var newlyAdded = 0;
+          for (var i = items.length - 1; i >= 0; i--) {
+            var item = items[i];
+            if (!existingIds.has(item.assessment_id)) {
+              if (emptyRow) { emptyRow.remove(); emptyRow = null; }
+              var newRow = renderAssessmentRow(item);
+              tbody.insertBefore(newRow, tbody.firstChild);
+              existingIds.add(item.assessment_id);
+              newlyAdded++;
+            } else {
+              // 상태 변경 동기화
+              var row = document.getElementById('row-' + item.assessment_id);
+              if (row && row.dataset.status !== item.status) {
+                row.dataset.status = item.status;
+                var updatedRow = renderAssessmentRow(item);
+                updatedRow.classList.remove('row-new-flash');
+                row.replaceWith(updatedRow);
+              }
+            }
+          }
+
+          if (newlyAdded > 0) {
+            updateCounts();
+            applyFilter();
+          }
+        })
+        .catch(function(err) {
+          console.warn('XDR feed polling error:', err);
+        });
+    }
+
+    // 토글 버튼 제어
+    var toggleBtn = document.getElementById('xdr-toggle-btn');
+    var liveBadge = document.getElementById('xdr-live-status');
+    var liveText = document.getElementById('xdr-live-text');
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function() {
+        isLivePaused = !isLivePaused;
+        if (isLivePaused) {
+          liveBadge.classList.add('is-paused');
+          liveText.textContent = '실시간 감시 일시정지';
+          toggleBtn.textContent = '▶ 재개';
+        } else {
+          liveBadge.classList.remove('is-paused');
+          liveText.textContent = '실시간 감시 중 (3초)';
+          toggleBtn.textContent = '⏸ 일시정지';
+          pollXDRFeed();
+        }
+      });
+    }
+
+    // 3초 주기로 자동 감시 시작
+    liveTimer = setInterval(pollXDRFeed, 3000);
+  </script>
 </section>
 {% endblock %}
