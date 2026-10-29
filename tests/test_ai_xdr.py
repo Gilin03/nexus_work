@@ -845,11 +845,11 @@ def test_explicit_block_approval_dry_run_records_without_registering_ip(app, mon
     assert len(writes) == 1
 
 
-def test_explicit_block_approval_live_uses_existing_block_ip_with_trace(app, monkeypatch):
+def test_explicit_block_approval_ignores_ai_policy_gates_and_uses_existing_block_ip(app, monkeypatch):
     from app import db, security
 
     now = datetime(2026, 10, 26, 1, 30, tzinfo=timezone.utc)
-    row = _block_approval_row()
+    row = _block_approval_row(approval_allowed=0, verdict="SUSPICIOUS", threat_score=10, confidence=0.1)
     writes, blocks = [], []
     monkeypatch.setattr(db, "query_one", lambda *_args, **_kwargs: row)
     monkeypatch.setattr(db, "execute_rowcount", lambda sql, params=(): writes.append((sql, params)) or 1)
@@ -921,10 +921,6 @@ def test_block_approval_live_requires_both_live_gates(app, monkeypatch):
 
 
 @pytest.mark.parametrize("overrides,expected", [
-    ({"approval_allowed": 0}, "approval_not_allowed"),
-    ({"verdict": "SUSPICIOUS"}, "verdict_not_malicious"),
-    ({"threat_score": 79}, "score_below_threshold"),
-    ({"confidence": 0.79}, "confidence_below_threshold"),
     ({"recommended_actions": '["notify_only"]'}, "action_not_recommended"),
     ({"src_ip": "invalid-ip"}, "invalid_or_missing_ip"),
     ({"src_ip": "192.168.3.14"}, "protected_ip"),
@@ -969,6 +965,7 @@ def test_general_approval_never_registers_recommended_block_ip(app, monkeypatch)
 
 
 def test_admin_xdr_template_shows_separate_block_approval_only_when_recommended(app):
+    from pathlib import Path
     from flask import render_template
 
     def item(assessment_id, actions, error=""):
@@ -991,6 +988,15 @@ def test_admin_xdr_template_shows_separate_block_approval_only_when_recommended(
 
     assert html.count('value="APPROVED_BLOCK_IP"') == 2
     assert 'value="APPROVED_BLOCK_IP" disabled title="protected_ip"' in html
+    assert 'value="APPROVED"' not in html
+    assert 'value="REJECTED">IP 차단 거부</button>' in html
+    assert 'value="REJECTED">평가 거부</button>' in html
+    assert html.count("IP 차단 승인") == 2
+
+    script = Path(app.static_folder, "xdr.js").read_text(encoding="utf-8")
+    assert 'value="APPROVED">' not in script
+    assert "? 'IP 차단 거부'" in script
+    assert ": '평가 거부';" in script
 
 
 def test_ip_block_gate_configuration_is_opt_in(monkeypatch):

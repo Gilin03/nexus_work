@@ -543,16 +543,9 @@ def _policy_threshold_error(assessment, config):
 
 
 def _block_approval_error(assessment, config):
-    """차단 승인 전 assessment와 대상 IP가 현재 정책을 만족하는지 fail-closed로 확인한다."""
+    """명시적인 관리자 차단 승인에 필요한 최소 조건만 확인한다."""
     if assessment.get("status") != "PENDING":
         return "assessment_not_pending"
-    if assessment.get("approval_allowed") not in (True, 1, "1"):
-        return "approval_not_allowed"
-    if assessment.get("verdict") != "MALICIOUS":
-        return "verdict_not_malicious"
-    threshold_error = _policy_threshold_error(assessment, config)
-    if threshold_error:
-        return threshold_error
     actions = _json_value(assessment.get("recommended_actions"), [])
     if not isinstance(actions, list) or "block_ip" not in actions:
         return "action_not_recommended"

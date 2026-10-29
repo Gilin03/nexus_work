@@ -120,14 +120,14 @@
       var blockBtn = (a.recommended_actions && a.recommended_actions.includes('block_ip'))
         ? '<button class="btn-xdr btn-xdr-block" name="decision" value="' + 'APPROVED_' + 'BLOCK_IP"' + (a.block_approval_error ? ' disabled title="' + a.block_approval_error + '"' : '') + '>🚫 IP 차단 승인</button>'
         : '';
+      var rejectLabel = (a.recommended_actions && a.recommended_actions.includes('block_ip'))
+        ? 'IP 차단 거부'
+        : '평가 거부';
 
       actionHtml = '<form method="post" action="' + decideUrl + '" class="xdr-actions">' +
         '<input type="hidden" name="csrf_token" value="' + csrfToken + '">' +
         blockBtn +
-        '<div class="act-btn-row">' +
-          '<button class="btn-xdr btn-xdr-approve" name="decision" value="APPROVED">✓ 일반 승인</button>' +
-          '<button class="btn-xdr btn-xdr-reject" name="decision" value="REJECTED">거부</button>' +
-        '</div>' +
+        '<button class="btn-xdr btn-xdr-reject" name="decision" value="REJECTED">' + rejectLabel + '</button>' +
         '<button class="btn-xdr btn-xdr-fp" name="decision" value="FALSE_POSITIVE">🛡️ 오탐(False Positive) 예외</button>' +
         (a.block_approval_error ? '<div style="font-size: 0.72rem; color: #dc2626; margin-top: 2px;">⚠️ ' + a.block_approval_error + '</div>' : '') +
         '</form>';
