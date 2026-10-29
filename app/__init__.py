@@ -89,6 +89,8 @@ def create_app(overrides=None):
     def http_error(exc):
         code = exc.code or 500
         if code == 404:
+            if request.path == "/favicon.ico":
+                return app.response_class(status=204, mimetype="image/x-icon")
             security.log_event("not_found", "INFO", "no_such_path")
         elif code in (413, 429):
             security.log_event("request_rejected", "BLOCK", f"http_{code}")
