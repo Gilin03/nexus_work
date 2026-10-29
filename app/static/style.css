@@ -195,7 +195,7 @@ p {
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: 1000;
   height: var(--head-h);
   padding: 0 1rem 0 0;
   box-shadow: var(--shadow-xs);
@@ -319,7 +319,7 @@ p {
   pointer-events: none;
   transform: translateY(6px);
   transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 50;
+  z-index: 1001;
 }
 
 .nav-group:hover .drop,
@@ -2541,13 +2541,13 @@ table.cal ul { list-style: none; margin: 0.2rem 0 0; padding: 0; }
 
 /* 1단계: 화면 반분할 & 태블릿 구간 (max-width: 1080px) */
 @media (max-width: 1280px) {
-  /* 셸 & 레이아웃 */
+  /* 셸 & 레이아웃: 화면 절반(960px)에서도 왼쪽 탭(사이드바) 유지 */
   .shell {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: var(--rail-w) minmax(0, 1fr) !important;
     grid-template-rows: var(--head-h) minmax(0, 1fr) !important;
   }
   .rail {
-    display: none !important; /* 사이드바 숨김으로 콘텐츠 가로 폭 100% 확보 */
+    display: block !important;
   }
   .main {
     max-width: 100% !important;
@@ -2558,11 +2558,15 @@ table.cal ul { list-style: none; margin: 0.2rem 0 0; padding: 0; }
     overflow-x: hidden !important;
   }
 
-  /* 상단 네비게이션 바: 단일 헤더 라인 유지 및 컴팩트화로 겹침 현상 완전 제거 */
+  /* 상단 네비게이션 바: 단일 헤더 라인 및 드롭다운 z-index 최상위 유지 */
   .topbar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 1000 !important;
     height: var(--head-h) !important;
     flex-wrap: nowrap !important;
     padding: 0 0.8rem 0 0 !important;
+    overflow: visible !important;
   }
   .brand {
     padding: 0 0.8rem !important;
@@ -2571,14 +2575,30 @@ table.cal ul { list-style: none; margin: 0.2rem 0 0; padding: 0; }
   }
   .topbar nav {
     margin-left: 0.2rem !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
+    overflow: visible !important;
     flex: 1 1 auto !important;
     min-width: 0 !important;
+  }
+  .nav-group {
+    position: relative !important;
+    overflow: visible !important;
   }
   .nav-group h2 {
     padding: 0 0.65rem !important;
     font-size: 0.88rem !important;
+  }
+  .drop {
+    position: absolute !important;
+    top: calc(var(--head-h) - 4px) !important;
+    left: 0 !important;
+    z-index: 1001 !important;
+  }
+  .nav-group:hover .drop,
+  .nav-group:focus-within .drop {
+    display: block !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translateY(0) !important;
   }
   .who {
     padding: 0 0.6rem !important;
