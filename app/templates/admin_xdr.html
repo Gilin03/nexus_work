@@ -3,6 +3,18 @@
 {% block content %}
 <section class="sheet" style="max-width: 100%; padding: 1.5rem 1.8rem; background: #ffffff;">
   <style>
+    /* 모니터 전폭(100%) 활용: 부모 .main의 86rem 상한을 해제하여 우측 빈 여백 완전 제거 */
+    .main {
+      max-width: 100% !important;
+      width: 100% !important;
+      box-sizing: border-box;
+    }
+    .sheet {
+      max-width: 100% !important;
+      width: 100% !important;
+      box-sizing: border-box;
+    }
+
     /* ==========================================================================
        AI-XDR 최고급 가독성 UI 스타일 (Modern Security Operations Center)
        ========================================================================== */
@@ -151,11 +163,11 @@
     table.xdr-table tr:hover td { background-color: #f8fafc; }
 
     /* 컬럼 비율 최적화 */
-    .col-time   { width: 13%; }
-    .col-target { width: 15%; }
+    .col-time   { width: 12%; }
+    .col-target { width: 14%; }
     .col-rule   { width: 14%; }
-    .col-ai     { width: 38%; }
-    .col-action { width: 20%; }
+    .col-ai     { width: 42%; }
+    .col-action { width: 18%; }
 
     /* 상태 & 판정 배지 */
     .xdr-tag {
