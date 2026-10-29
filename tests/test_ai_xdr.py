@@ -230,8 +230,8 @@ def test_policy_classifies_kst_day_night_and_weekend(now, expected_phase):
     result = ai_xdr.evaluate_policy(
         {"threat_score": 90, "confidence": 0.95, "verdict": "MALICIOUS", "recommended_actions": ["block_ip"]},
         {"rule_ids": ["R8"], "src_ip": "192.168.7.77", "last_seen": now.isoformat()},
-        {"XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live", "XDR_AUTO_MIN_SCORE": 80,
-         "XDR_AUTO_MIN_CONFIDENCE": 0.8, "XDR_MAX_EVENT_AGE_SECONDS": 300,
+        {"XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live", "XDR_IP_BLOCK_ENABLED": True,
+         "XDR_AUTO_MIN_SCORE": 80, "XDR_AUTO_MIN_CONFIDENCE": 0.8, "XDR_MAX_EVENT_AGE_SECONDS": 300,
          "XDR_DAY_START_HOUR": 8, "XDR_DAY_END_HOUR": 20, "XDR_WEEKEND_MODE": "approval"},
         now=now,
     )
@@ -315,8 +315,8 @@ def test_confidence_threshold_boundary_for_auto_rule_candidates(rule_id, confide
         {"threat_score": 90, "confidence": confidence, "verdict": "MALICIOUS",
          "recommended_actions": ["block_ip"]},
         {"rule_ids": [rule_id], "src_ip": "203.0.113.55", "last_seen": now.isoformat()},
-        {"XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live", "XDR_AUTO_MIN_SCORE": 80,
-         "XDR_AUTO_MIN_CONFIDENCE": 0.80, "XDR_MAX_EVENT_AGE_SECONDS": 300,
+        {"XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live", "XDR_IP_BLOCK_ENABLED": True,
+         "XDR_AUTO_MIN_SCORE": 80, "XDR_AUTO_MIN_CONFIDENCE": 0.80, "XDR_MAX_EVENT_AGE_SECONDS": 300,
          "XDR_DAY_START_HOUR": 8, "XDR_DAY_END_HOUR": 20, "XDR_WEEKEND_MODE": "approval"},
         now=now,
     )
@@ -508,12 +508,15 @@ def test_list_assessments_returns_external_ticket_ids_without_local_fk(app, monk
         (["R8"], "not-an-ip", {}, False),
         (["R8"], "192.168.7.77", {"XDR_AUTO_MIN_CONFIDENCE": None}, False),
         (["R8"], "192.168.7.77", {"XDR_RESPONSE_MODE": "dry-run"}, False),
+        # VULN-FINDINGS.md 2026-10-29 MEDIUM #2 회귀 테스트: 자동 차단 경로도 사람 승인 경로와
+        # 동일하게 XDR_IP_BLOCK_ENABLED 킬스위치를 반드시 확인해야 한다.
+        (["R8"], "192.168.7.77", {"XDR_IP_BLOCK_ENABLED": False}, False),
     ],
 )
 def test_policy_fails_closed_for_rule_whitelist_ip_and_unset_or_dry_run(rule_ids, src_ip, extra, expected):
     now = datetime(2026, 10, 26, 11, 30, tzinfo=timezone.utc)
-    cfg = {"XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live", "XDR_AUTO_MIN_SCORE": 80,
-           "XDR_AUTO_MIN_CONFIDENCE": 0.8, "XDR_MAX_EVENT_AGE_SECONDS": 300,
+    cfg = {"XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live", "XDR_IP_BLOCK_ENABLED": True,
+           "XDR_AUTO_MIN_SCORE": 80, "XDR_AUTO_MIN_CONFIDENCE": 0.8, "XDR_MAX_EVENT_AGE_SECONDS": 300,
            "XDR_DAY_START_HOUR": 8, "XDR_DAY_END_HOUR": 20, "XDR_WEEKEND_MODE": "approval"}
     cfg.update(extra)
     result = ai_xdr.evaluate_policy(
@@ -589,6 +592,8 @@ def test_window_processor_reuses_block_ip_only_for_allowed_rules(app, monkeypatc
     })
     app.config.update({
         "XDR_TRIAGE_WINDOW_SECONDS": 180, "XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live",
+        "XDR_IP_BLOCK_ENABLED": True,  # 이 테스트는 룰 허용목록(R5/R6/R8) 게이팅을 검증하는 것이지
+        # 차단 킬스위치 게이팅이 아니므로 명시적으로 켠다(VULN-FINDINGS.md 2026-10-29 MEDIUM #2 수정).
         "XDR_AUTO_MIN_SCORE": 80, "XDR_AUTO_MIN_CONFIDENCE": 0.8, "XDR_MAX_EVENT_AGE_SECONDS": 300,
         "XDR_DAY_START_HOUR": 8, "XDR_DAY_END_HOUR": 20, "XDR_WEEKEND_MODE": "approval",
     })

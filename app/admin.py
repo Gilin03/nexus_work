@@ -21,6 +21,7 @@ import io
 import re
 import secrets
 import string
+import time
 from datetime import datetime, timedelta
 
 import pymysql
@@ -94,6 +95,7 @@ def users():
 
 
 @bp.post("/users/<int:user_id>/role")
+@permission_required("users.manage")
 def change_role(user_id):
     new_role = request.form.get("role", "")
     expected = request.form.get("current_role", "")  # 화면을 연 시점의 역할: 그 사이 바뀌었으면 덮어쓰지 않는다
@@ -232,6 +234,7 @@ def _new_form(error=None, status=200, values=None):
 
 
 @bp.route("/users/new", methods=["GET", "POST"])
+@permission_required("users.manage")
 def user_new():
     if request.method == "GET":
         return _new_form()
@@ -269,6 +272,7 @@ def user_new():
 
 
 @bp.post("/users/<int:user_id>/reset-password")
+@permission_required("users.manage")
 def reset_password(user_id):
     if user_id == g.user["id"]:
         log_event("admin_action", "DENY", "self_change", action="password_reset", target=g.user["username"])
@@ -288,6 +292,7 @@ def reset_password(user_id):
 
 
 @bp.post("/users/<int:user_id>/lock")
+@permission_required("users.manage")
 def lock(user_id):
     if user_id == g.user["id"]:
         log_event("admin_action", "DENY", "self_change", action="lock", target=g.user["username"])
@@ -539,13 +544,31 @@ def audit_export():
 @bp.get("/audit/stream")
 @permission_required("security.dashboard")
 def audit_stream():
-    """실시간 보안 감사 이벤트 SSE 스트림."""
-    q = audit.subscribe_audit_events()
+    """실시간 보안 감사 이벤트 SSE 스트림.
+
+    연결마다 공유 Waitress 스레드풀의 워커 하나를 점유하므로, 계정당 동시 연결 수·접속 시도
+    속도·연결 하나의 최대 유지시간을 모두 제한한다 — 그러지 않으면 `security.dashboard` 권한만
+    있는 계정 하나가 스레드풀을 전부 점유해 앱 전체를 멈출 수 있다(VULN-FINDINGS.md 2026-10-29 MEDIUM #3)."""
+    cfg = current_app.config
+    if security.ip_rate_limited(f"audit_stream:{security.get_client_ip()}", cfg["AUDIT_STREAM_OPEN_LIMIT"]):
+        log_event("rate_limited", "BLOCK", "audit_stream_open_limit")
+        return render_template("error.html", code=429, message="요청이 너무 많습니다. 잠시 후 다시 시도하세요."), 429
+
+    q = audit.subscribe_audit_events(key=g.user["id"], max_concurrent=cfg["AUDIT_STREAM_MAX_CONCURRENT"])
+    if q is None:
+        log_event("rate_limited", "BLOCK", "audit_stream_concurrency_limit")
+        return render_template("error.html", code=429, message="동시 연결 수를 초과했습니다. 다른 탭을 닫고 다시 시도하세요."), 429
+
+    max_seconds = cfg["AUDIT_STREAM_MAX_SECONDS"]
+    started = time.monotonic()
 
     def generate():
         try:
             yield b": connected\n\n"
             while True:
+                if time.monotonic() - started >= max_seconds:
+                    yield b": stream_max_duration_reached\n\n"
+                    return
                 try:
                     event_data = q.get(timeout=15.0)
                     payload = json.dumps(event_data, ensure_ascii=False)

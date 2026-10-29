@@ -55,7 +55,7 @@
     <ul class="rows">
       {% for a in d.waiting %}
       <li><a href="{{ url_for('approvals.approval_view', approval_id=a.id) }}">{% if a.urgency == 'urgent' %}<span class="st st-rejected">긴급</span> {% endif %}{{ a.title }}</a>
-        <span class="hint">{{ a.type_label }} · {{ a.requester }} · {{ a.created_at.strftime('%m-%d') }}</span></li>
+        <span class="hint">{{ a.type_label }} · {{ a.requester }} · {{ a.created_at|kst('%m-%d') }}</span></li>
       {% endfor %}
     </ul>
     {% else %}<p class="hint">지금 처리할 결재가 없습니다.</p>{% endif %}
@@ -103,7 +103,7 @@
     {% if d.notices %}
     <ul class="rows">
       {% for p in d.notices %}
-      <li><a href="{{ url_for('portal.post_view', post_id=p.id) }}">{{ p.title }}</a> <span class="hint">{{ p.author }} · {{ p.created_at.strftime('%m-%d') }}</span></li>
+      <li><a href="{{ url_for('portal.post_view', post_id=p.id) }}">{{ p.title }}</a> <span class="hint">{{ p.author }} · {{ p.created_at|kst('%m-%d') }}</span></li>
       {% endfor %}
     </ul>
     {% else %}<p class="hint">공지가 없습니다.</p>{% endif %}
@@ -114,7 +114,7 @@
     {% if d.reservations %}
     <ul class="rows">
       {% for r in d.reservations %}
-      <li><strong class="when">{{ r.start_at.strftime('%m-%d %H:%M') }}~{{ r.end_at.strftime('%H:%M') }}</strong> {{ r.resource }} <span class="hint">{{ r.purpose }}</span></li>
+      <li><strong class="when">{{ r.start_at|kst('%m-%d %H:%M') }}~{{ r.end_at|kst('%H:%M') }}</strong> {{ r.resource }} <span class="hint">{{ r.purpose }}</span></li>
       {% endfor %}
     </ul>
     {% else %}<p class="hint">예정된 예약이 없습니다.</p>{% endif %}

@@ -10,7 +10,7 @@
     <tr><th>신청자</th><td>{{ e.owner }} ({{ e.owner_dept }})</td></tr>
     <tr><th>금액</th><td class="num">{{ e.amount | won }}</td></tr>
     <tr><th>상태</th><td>{{ status(e.status) }}</td></tr>
-    <tr><th>등록일</th><td>{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
+    <tr><th>등록일</th><td>{{ e.created_at|kst('%Y-%m-%d %H:%M') }}</td></tr>
     {% if approval %}<tr><th>결재</th><td><a href="{{ url_for('approvals.approval_view', approval_id=approval.id) }}">{{ status(approval.status) }}</a></td></tr>{% endif %}
   </table>
   {% if can_submit %}

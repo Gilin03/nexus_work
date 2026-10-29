@@ -28,7 +28,7 @@
           <td>{{ types[r.doc_type][0] }}</td>
           <td>{% if r.urgency == 'urgent' %}<span class="st st-rejected">긴급</span> {% endif %}<a href="{{ url_for('approvals.approval_view', approval_id=r.id) }}">{{ r.title }}</a></td>
           <td>{{ r.requester }}</td>
-          <td class="num">{{ r.created_at.strftime('%Y-%m-%d') }}</td>
+          <td class="num">{{ r.created_at|kst('%Y-%m-%d') }}</td>
           <td>{% if r.status == 'pending' %}{{ r.current_step }} / {{ r.total }}단계{% endif %}</td>
           <td>{{ status(r.status) }}</td>
           <td class="num">{% if r.total_amount %}{{ r.total_amount | won }}{% endif %}</td>

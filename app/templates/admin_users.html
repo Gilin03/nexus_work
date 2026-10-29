@@ -183,7 +183,7 @@
       <thead><tr><th>아이디</th><th>이름</th><th>부서</th><th>삭제 시각</th><th>삭제한 사람</th><th></th></tr></thead>
       <tbody>
       {% for d in deleted %}
-        <tr><td>{{ d.username }}</td><td>{{ d.display_name }}</td><td>{{ d.dept }}</td><td class="num">{{ d.deleted_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ d.deleted_by or '-' }}</td>
+        <tr><td>{{ d.username }}</td><td>{{ d.display_name }}</td><td>{{ d.dept }}</td><td class="num">{{ d.deleted_at|kst('%Y-%m-%d %H:%M') }}</td><td>{{ d.deleted_by or '-' }}</td>
           <td>{% if can_delete %}<a class="btn small" href="{{ url_for('admin.restore_confirm', user_id=d.id) }}" aria-label="{{ d.username }} 복구">복구(재입사)</a>{% endif %}</td></tr>
       {% endfor %}
       </tbody>

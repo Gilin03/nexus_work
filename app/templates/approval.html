@@ -36,9 +36,9 @@
 
   <table class="facts gm-meta">
     <tr><th>상태</th><td>{{ status(a.status) }}</td></tr>
-    <tr><th>시행일자</th><td>{{ a.created_at.strftime('%Y. %m. %d.') }}</td></tr>
-    <tr><th>상신일</th><td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
-    {% if a.decided_at %}<tr><th>종결일</th><td>{{ a.decided_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>{% endif %}
+    <tr><th>시행일자</th><td>{{ a.created_at|kst('%Y. %m. %d.') }}</td></tr>
+    <tr><th>상신일</th><td>{{ a.created_at|kst('%Y-%m-%d %H:%M') }}</td></tr>
+    {% if a.decided_at %}<tr><th>종결일</th><td>{{ a.decided_at|kst('%Y-%m-%d %H:%M') }}</td></tr>{% endif %}
     <tr><th>기안</th><td>{{ a.requester_dept }} {{ a.requester }}</td></tr>
     <tr><th>수신</th><td>{% if a.recipient %}{{ a.recipient }}{% else %}내부 결재{% endif %}</td></tr>
     {% if ccs %}<tr><th>참조</th><td>{% for c in ccs %}{{ c.display_name }} <span class="hint">{{ c.dept }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</td></tr>{% endif %}

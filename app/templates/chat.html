@@ -10,7 +10,7 @@
     <li class="msg msg-{{ m.sender }}">
       <div class="msg-head">
         <span class="msg-who">{% if m.sender == 'user' %}나{% else %}어시스턴트{% endif %}</span>
-        <time>{{ m.created_at.strftime('%Y-%m-%d %H:%M') }}</time>
+        <time>{{ m.created_at|kst('%Y-%m-%d %H:%M') }}</time>
       </div>
       <div class="msg-body">{{ m.content }}</div>
     </li>

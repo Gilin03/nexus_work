@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ e.title }} · 일정 · NEXUS WORK{% endblock %}
 {% block content %}
-<a class="crumb" href="{{ url_for('work.calendar', month=e.start_at.strftime('%Y-%m')) }}">&larr; 일정</a>
+<a class="crumb" href="{{ url_for('work.calendar', month=e.start_at|kst('%Y-%m')) }}">&larr; 일정</a>
 <h1>{{ e.title }}{% if e.status == 'cancelled' %} <span class="st st-withdrawn">취소됨</span>{% endif %}</h1>
 <div class="sheet">
   <table class="kv">
     <tbody>
-      <tr><th>일시</th><td>{% if e.all_day %}{{ e.start_at.strftime('%Y-%m-%d') }}{% if e.end_at.date() != e.start_at.date() %} ~ {{ e.end_at.strftime('%Y-%m-%d') }}{% endif %} (종일){% else %}{{ e.start_at.strftime('%Y-%m-%d %H:%M') }} ~ {% if e.end_at.date() == e.start_at.date() %}{{ e.end_at.strftime('%H:%M') }}{% else %}{{ e.end_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}{% endif %}</td></tr>
+      <tr><th>일시</th><td>{% if e.all_day %}{{ e.start_at|kst('%Y-%m-%d') }}{% if e.end_at.date() != e.start_at.date() %} ~ {{ e.end_at|kst('%Y-%m-%d') }}{% endif %} (종일){% else %}{{ e.start_at|kst('%Y-%m-%d %H:%M') }} ~ {% if e.end_at.date() == e.start_at.date() %}{{ e.end_at|kst('%H:%M') }}{% else %}{{ e.end_at|kst('%Y-%m-%d %H:%M') }}{% endif %}{% endif %}</td></tr>
       <tr><th>장소</th><td>{{ e.location or '-' }}</td></tr>
       <tr><th>등록자</th><td>{{ e.owner }} <span class="hint">({{ e.owner_dept }})</span></td></tr>
       <tr><th>공개 범위</th><td>{{ scopes[e.scope] }}</td></tr>

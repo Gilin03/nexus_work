@@ -1,5 +1,34 @@
 """표시용 변환 도우미."""
 
+from datetime import datetime, date, timezone, timedelta
+
+KST = timezone(timedelta(hours=9))
+
+
+def to_kst(val, fmt=None):
+    """Convert naive or UTC datetime to Seoul (KST) time string.
+    If val is already a date or date string, format accordingly.
+    """
+    if val is None or val == "":
+        return ""
+    if isinstance(val, str):
+        try:
+            val = datetime.fromisoformat(val.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return val
+    if isinstance(val, date) and not isinstance(val, datetime):
+        return val.strftime(fmt or "%Y-%m-%d")
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            # Naive datetimes stored in MySQL are in UTC
+            val = val.replace(tzinfo=timezone.utc)
+        kst_dt = val.astimezone(KST)
+        if fmt:
+            return kst_dt.strftime(fmt)
+        return kst_dt.strftime("%Y-%m-%d %H:%M:%S")
+    return str(val)
+
+
 _DIGITS = "영일이삼사오육칠팔구"
 _SMALL = ("", "십", "백", "천")
 _BIG = ("", "만", "억", "조", "경")

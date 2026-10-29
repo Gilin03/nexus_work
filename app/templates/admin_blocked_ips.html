@@ -60,9 +60,9 @@
               <span class="badge muted" style="color: #777;">[만료됨]</span>
             {% endif %}
           </td>
-          <td>{{ row.blocked_until }}</td>
+          <td>{{ row.blocked_until|kst }}</td>
           <td>{{ row.created_by }}</td>
-          <td>{{ row.created_at }}</td>
+          <td>{{ row.created_at|kst }}</td>
           <td>
             <form method="post" action="{{ url_for('admin.remove_blocked_ip', ip=row.ip_address) }}" class="inline" onsubmit="return confirm('이 IP의 차단을 즉시 해제하시겠습니까?');">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
