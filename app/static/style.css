@@ -2830,3 +2830,131 @@ table.xdr-table tr:hover td { background-color: #f8fafc; }
 
 .btn-xdr-fp { background: #f8fafc; color: #64748b; border-color: #e2e8f0; }
 .btn-xdr-fp:hover { background: #f1f5f9; }
+
+
+/* ==========================================================================
+   AI-XDR 반응형 미디어 쿼리 (화면 반분할 및 모바일/태블릿 완벽 대응)
+   ========================================================================== */
+.xdr-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1080px) {
+  /* 1. 컨테이너 여백 최적화 */
+  .main:has(.xdr-sheet),
+  .main:has(#xdrContainer),
+  .xdr-sheet {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 1.1rem 1.2rem !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  /* 2. 상단 헤더 및 액션 버튼 세로 정렬 */
+  .xdr-header-box {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  .xdr-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  /* 3. 상단 퀵 필터 칩 */
+  .filter-bar {
+    gap: 6px;
+    margin-bottom: 0.8rem;
+  }
+  .filter-btn {
+    padding: 5px 10px;
+    font-size: 0.78rem;
+  }
+
+  /* 4. 테이블 래퍼 테두리 해제 및 카드 모드 전환 */
+  .xdr-table-wrap {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+  table.xdr-table {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: auto !important;
+  }
+  table.xdr-table thead {
+    display: none !important; /* 반분할/모바일에서는 헤더 행 숨김 */
+  }
+  table.xdr-table tbody {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* 5. 각 위협 평가 행을 독립 인시던트 카드로 변환 */
+  table.xdr-table tr.xdr-row {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    padding: 14px 16px !important;
+    margin-bottom: 12px !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  }
+  table.xdr-table tr.xdr-row:hover {
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08) !important;
+  }
+
+  /* 6. 카드 내부 셀 블록 배치 */
+  table.xdr-table td {
+    display: block !important;
+    width: 100% !important;
+    padding: 8px 0 !important;
+    border-bottom: 1px dashed #e2e8f0 !important;
+    box-sizing: border-box !important;
+  }
+  table.xdr-table td:last-child {
+    border-bottom: none !important;
+    padding-top: 12px !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* 7. 행 내 메타 레이블 추가 (카드 모드 전용) */
+  table.xdr-table td.col-time::before {
+    content: "⏱ 발생 시각: ";
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+  table.xdr-table td.col-target::before {
+    content: "🎯 대상 출발지: ";
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+  table.xdr-table td.col-rule::before {
+    content: "🔍 탐지 규칙: ";
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+  table.xdr-table td.col-ai::before {
+    content: "🤖 AI 심층 판정: ";
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #64748b;
+    display: block;
+    margin-bottom: 5px;
+  }
+}

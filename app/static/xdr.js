@@ -240,6 +240,8 @@
     if (mainEl) {
       mainEl.style.maxWidth = '100%';
       mainEl.style.width = '100%';
+      mainEl.style.boxSizing = 'border-box';
+      mainEl.style.overflowX = 'hidden';
     }
 
     // 2. 빠른 필터 버튼 클릭 리스너 등록 (CSP onclick 대체)
