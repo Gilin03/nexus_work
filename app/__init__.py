@@ -1,4 +1,4 @@
-from flask import Flask, g, jsonify, render_template, request
+from flask import Flask, g, jsonify, render_template, request, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 from . import admin, ai, approvals, auth, chat, db, decoy, erp, formats, hr, internal_api, library, messenger_api, permissions, portal, profile, realtime, security, work
@@ -90,7 +90,7 @@ def create_app(overrides=None):
         code = exc.code or 500
         if code == 404:
             if request.path == "/favicon.ico":
-                return app.response_class(status=204, mimetype="image/x-icon")
+                return send_from_directory(app.static_folder, "favicon.ico", mimetype="image/vnd.microsoft.icon")
             security.log_event("not_found", "INFO", "no_such_path")
         elif code in (413, 429):
             security.log_event("request_rejected", "BLOCK", f"http_{code}")
