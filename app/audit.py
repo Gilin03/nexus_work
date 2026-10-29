@@ -226,14 +226,24 @@ def csv_cell(value):
 # 실시간 감사 로그 SSE (Server-Sent Events) 스트리밍 브로드캐스터
 # =====================================================================================
 _audit_subscribers = set()
+_audit_subscriber_keys = {}  # q -> subscriber key(동시 연결 수 계산용)
 _audit_subscribers_lock = threading.Lock()
 
 
-def subscribe_audit_events():
-    """새 SSE 클라이언트 큐 생성 및 등록."""
-    q = queue.Queue(maxsize=100)
+def subscribe_audit_events(key=None, max_concurrent=None):
+    """새 SSE 클라이언트 큐 생성 및 등록.
+
+    `key`(보통 사용자 id)가 주어지고 이미 `max_concurrent`개 연결 중이면 등록을 거부하고 None을
+    반환한다 — 계정 하나가 공유 스레드풀을 전부 점유하는 것을 막는다
+    (VULN-FINDINGS.md 2026-10-29 MEDIUM #3)."""
     with _audit_subscribers_lock:
+        if key is not None and max_concurrent is not None:
+            current = sum(1 for k in _audit_subscriber_keys.values() if k == key)
+            if current >= max_concurrent:
+                return None
+        q = queue.Queue(maxsize=100)
         _audit_subscribers.add(q)
+        _audit_subscriber_keys[q] = key
     return q
 
 
@@ -241,6 +251,7 @@ def unsubscribe_audit_events(q):
     """SSE 클라이언트 큐 해제."""
     with _audit_subscribers_lock:
         _audit_subscribers.discard(q)
+        _audit_subscriber_keys.pop(q, None)
 
 
 def broadcast_audit_event(record: dict):

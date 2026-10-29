@@ -11,7 +11,7 @@
       <tr><th>이름</th><td>{{ target.display_name }}</td></tr>
       <tr><th>부서</th><td>{{ target.dept }}</td></tr>
       <tr><th>삭제 전 역할·직급</th><td>{{ target.role }} · {{ target.title or '-' }}</td></tr>
-      <tr><th>삭제 시각</th><td>{{ target.deleted_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
+      <tr><th>삭제 시각</th><td>{{ target.deleted_at|kst('%Y-%m-%d %H:%M') }}</td></tr>
     </tbody>
   </table>
   <p class="hint">복구하면 이 계정으로 다시 로그인할 수 있고, 인사카드와 지난 결재·업무·게시글 기록이 그대로 다시 연결됩니다. 예전 비밀번호는 쓸 수 없고 새 임시 비밀번호를 한 번만 보여 줍니다.

@@ -19,7 +19,7 @@
           <td><a href="{{ url_for('library.form_download', form_id=r.id) }}">{{ r.title }}</a></td>
           <td>{{ r.description }}</td>
           <td>{{ r.orig_name }} <span class="hint">{{ '{:,}'.format(r.size) }} B</span></td>
-          <td class="num">{{ r.created_at.strftime('%Y-%m-%d') }}</td>
+          <td class="num">{{ r.created_at|kst('%Y-%m-%d') }}</td>
           <td>
             {% if is_admin %}
             <form method="post" action="{{ url_for('library.form_delete', form_id=r.id) }}" class="inline">

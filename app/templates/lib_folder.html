@@ -33,7 +33,7 @@
           <td>v{{ x.version }}{% if x.latest %} <span class="flag">최신</span>{% endif %}</td>
           <td class="num">{{ '{:,}'.format(x.size) }} B</td>
           <td>{{ x.uploader }}</td>
-          <td class="num">{{ x.created_at.strftime('%Y-%m-%d') }}</td>
+          <td class="num">{{ x.created_at|kst('%Y-%m-%d') }}</td>
           <td>{{ x.note }}</td>
           <td>
             {% if x.uploaded_by == me or is_admin %}

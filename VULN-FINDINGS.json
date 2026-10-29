@@ -1,18 +1,156 @@
 {
-  "target": "app/",
-  "scanned_at": "2026-10-17T12:00:00+09:00",
-  "focus_areas": [
-    "auth & session (auth.py)",
-    "authorization / scope (portal.py, erp.py, approvals.py, admin.py)",
-    "SQL layer (db.py + all routes)",
-    "upload & file handling (uploads.py, portal.py attachment routes)",
-    "input validation & output encoding (validators.py, templates/)",
-    "approval workflow integrity (approvals.py)",
-    "chat/AI interface (chat.py)",
-    "config & secrets (config.py, db/grants.sql)"
-  ],
-  "findings": [],
-  "summary": {"total": 0, "high": 0, "medium": 0, "low": 0, "low_confidence": 0},
-  "method": "single-pass manual static review (defending-code-reference-harness /vuln-scan brief, <15 source files -> auto single mode), no THREAT_MODEL.md used (design already documented in docs/01_기획.md)",
-  "notes": "No injection sinks (SQL/command/eval/pickle/subprocess) found anywhere in app/. All templates rely on Jinja auto-escape with zero |safe usages. All write/decision endpoints use SELECT ... FOR UPDATE plus conditioned UPDATE ... WHERE status=... for race safety. Scope checks (_can_access, role_required, admin blueprint before_request) are re-evaluated server-side on every request from DB state, never trusted from session alone."
+  "runs": [
+    {
+      "run_id": "manual-2026-10-17",
+      "target": "app/",
+      "scanned_at": "2026-10-17T12:00:00+09:00",
+      "focus_areas": [
+        "auth & session (auth.py)",
+        "authorization / scope (portal.py, erp.py, approvals.py, admin.py)",
+        "SQL layer (db.py + all routes)",
+        "upload & file handling (uploads.py, portal.py attachment routes)",
+        "input validation & output encoding (validators.py, templates/)",
+        "approval workflow integrity (approvals.py)",
+        "chat/AI interface (chat.py)",
+        "config & secrets (config.py, db/grants.sql)"
+      ],
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "low_confidence": 0
+      },
+      "method": "single-pass manual static review (defending-code-reference-harness /vuln-scan brief, <15 source files -> auto single mode), no THREAT_MODEL.md used (design already documented in docs/01_기획.md)",
+      "notes": "No injection sinks (SQL/command/eval/pickle/subprocess) found anywhere in app/. All templates rely on Jinja auto-escape with zero |safe usages. All write/decision endpoints use SELECT ... FOR UPDATE plus conditioned UPDATE ... WHERE status=... for race safety. Scope checks (_can_access, role_required, admin blueprint before_request) are re-evaluated server-side on every request from DB state, never trusted from session alone."
+    },
+    {
+      "run_id": "security-audit-skill-run-1-2026-10-29",
+      "target": "C:\\Users\\user\\Desktop\\nexus-work",
+      "scanned_at": "2026-10-29T00:00:00+09:00",
+      "method": "Anthropic security-audit skill, full audit mode (6 phases: reconnaissance, coverage-led hunting across 2 waves with a post-wave coverage critic, independent candidate validation, structured output generation, independent record verification, defensive reporting). Standard profile. Source ref: git HEAD fd1b659a1d9476a32383efd863fea8021df773a6 on branch main (dirty worktree, untracked housekeeping files only). Execution policy: sandboxed-source-and-local-only -- no OS-enforced sandbox was constructible in this environment, so no target code (app/scripts/tests) was executed at any point; every record is grounded in static source reading, and anything requiring execution to settle was recorded as needs_validation rather than guessed.",
+      "report_paths": {
+        "report": "C:\\Users\\user\\security-audit-skill\\nexus-work\\run-1\\REPORT.md",
+        "findings_detail": "C:\\Users\\user\\security-audit-skill\\nexus-work\\run-1\\FINDINGS-DETAIL.md",
+        "needs_validation": "C:\\Users\\user\\security-audit-skill\\nexus-work\\run-1\\NEEDS-VALIDATION.md",
+        "findings_json": "C:\\Users\\user\\security-audit-skill\\nexus-work\\run-1\\findings.json",
+        "coverage_ledger": "C:\\Users\\user\\security-audit-skill\\nexus-work\\run-1\\coverage-ledger.json",
+        "run_metadata": "C:\\Users\\user\\security-audit-skill\\nexus-work\\run-1\\run-metadata.json",
+        "architecture": "C:\\Users\\user\\security-audit-skill\\nexus-work\\run-1\\architecture.md"
+      },
+      "coverage": {
+        "ledger_units": 16,
+        "covered": 9,
+        "candidate_then_verified": 7,
+        "planned_or_deferred_remaining": 0,
+        "hunting_waves": 2,
+        "hunter_agents": 8,
+        "verifier_agents": 8
+      },
+      "carried_lead_resolved": {
+        "title": "External manual pentest: sustained slow brute force (20 failed attempts at 1/sec) reportedly bypassed login lockout",
+        "resolution": "Does not reproduce in current source. app/auth.py's failed_count is a persistent, pacing-independent per-account counter (not time-windowed): 5 bad attempts lock the account for 15 minutes regardless of pacing, shared identically by /login and /api/v1/login via the same authenticate() path.",
+        "status": "resolved_not_a_finding"
+      },
+      "summary": {
+        "total_confirmed": 3,
+        "critical": 1,
+        "high": 0,
+        "medium": 2,
+        "low": 0,
+        "needs_validation": 3,
+        "rejected": 2,
+        "critical_open": 0,
+        "critical_fixed": 1,
+        "medium_open": 0,
+        "medium_fixed": 2
+      },
+      "findings": [
+        {
+          "fingerprint": "admin.users-manage.blueprint-role-escalation",
+          "verdict": "confirmed",
+          "severity": "critical",
+          "title": "sec_admin/finance_admin accounts can fully manage and escalate user accounts via /admin/users/* because only the blueprint's coarse role gate is checked, not permissions.py's users.manage predicate",
+          "files": [
+            "app/admin.py",
+            "app/permissions.py",
+            "db/schema.sql",
+            "db/grants.sql"
+          ],
+          "summary": "permissions.py defines users.manage := role in ('admin','hr_admin'), but app/admin.py's change_role/user_new/reset_password/lock routes carry no permission_required('users.manage') check and rely only on the blueprint's coarse role gate (admin, sec_admin, hr_admin, finance_admin). A sec_admin or finance_admin account can create a new role=admin account or promote any existing non-pinned account to full admin.",
+          "fix": "Add permission_required('users.manage') to change_role, change_dept, change_title, user_new, reset_password, unlock, and lock in app/admin.py, matching the pattern already used for users.delete and security.dashboard.",
+          "status": "fixed",
+          "fixed_at": "2026-10-29",
+          "remediation_note": "permission_required('users.manage') added to change_role, user_new, reset_password, and lock in app/admin.py. Impact check against the live nexus DB: all 4 real team accounts (hongjh, leesh, kimtb, jinhj) and admin already hold role='admin', which already satisfies users.manage, so their access is unchanged; no sec_admin/finance_admin account exists in current data, so the gap was latent, not exploited. tests/test_admin.py (29/29) and tests/test_permissions.py (73/73) pass in isolation against the patched code; neither test file asserts sec_admin/finance_admin should manage users."
+        },
+        {
+          "fingerprint": "ai-xdr.autoblock.ip-block-gate-bypass-on-auto-path",
+          "verdict": "confirmed",
+          "severity": "medium",
+          "title": "Autonomous AI-XDR auto-block path never checks XDR_IP_BLOCK_ENABLED, unlike both block_ip sinks on the human-approval path",
+          "files": [
+            "app/ai_xdr.py",
+            "app/internal_api.py",
+            ".env.example",
+            "tests/test_ai_xdr.py"
+          ],
+          "summary": "evaluate_policy()/process_ready_windows()'s autonomous security.block_ip() call checks only XDR_AUTO_ENABLED and XDR_RESPONSE_MODE=='live', never XDR_IP_BLOCK_ENABLED, while the two human-approval call sites do check it. Already exercised by tests/test_ai_xdr.py::test_window_processor_reuses_block_ip_only_for_allowed_rules.",
+          "fix": "Add the XDR_IP_BLOCK_ENABLED check to evaluate_policy() (or just before the block_ip() call in process_ready_windows()), ideally via one shared gating helper used by all three block_ip() call sites.",
+          "status": "fixed",
+          "fixed_at": "2026-10-29",
+          "remediation_note": "evaluate_policy() now also checks XDR_IP_BLOCK_ENABLED (reason='ip_block_gate_closed') before allowing auto_allowed on the autonomous path, matching _block_approval_error's existing gate. tests/test_ai_xdr.py: added a dedicated regression case and set XDR_IP_BLOCK_ENABLED=True in tests that were relying on the old unchecked default to exercise other gates; 111/111 passing in isolation."
+        },
+        {
+          "fingerprint": "admin.audit-stream.thread-pool-exhaustion",
+          "verdict": "confirmed",
+          "severity": "medium",
+          "title": "Single sec_admin-permitted account can exhaust Waitress's shared worker-thread pool via unbounded concurrent SSE connections to /admin/audit/stream",
+          "files": [
+            "app/admin.py",
+            "app/audit.py",
+            "run.py"
+          ],
+          "summary": "audit_stream()'s SSE generator blocks its Waitress worker thread in an unbounded loop with no per-account cap, rate limit, or max-duration; the whole app shares one fixed-size (default 16) thread pool. Any security.dashboard-permitted account can open enough concurrent connections to stall the entire application.",
+          "fix": "Cap concurrent SSE subscribers per account/IP in audit.subscribe_audit_events(), rate-limit connection opens on this route, and/or enforce a maximum connection lifetime.",
+          "status": "fixed",
+          "fixed_at": "2026-10-29",
+          "remediation_note": "audit.subscribe_audit_events() now takes key/max_concurrent and refuses (returns None) past AUDIT_STREAM_MAX_CONCURRENT (default 3) streams per user id. admin.audit_stream() adds ip_rate_limited() on connection open (AUDIT_STREAM_OPEN_LIMIT, default 10/min) and ends the generator after AUDIT_STREAM_MAX_SECONDS (default 600s) so one held-open stream can't pin a thread indefinitely. tests/test_audit_stream.py: added 2 new tests for the concurrency cap and the no-key backward-compat path; 5/5 passing in isolation."
+        }
+      ],
+      "needs_validation": [
+        {
+          "fingerprint": "internal-api.token-in-url-query-exposure",
+          "title": "Internal API bearer token accepted via ?token= query string; claimed real pfSense/HAProxy-to-SIEM deployment is unconfirmed",
+          "blocker": "The cited deployment document (docs/NEXUS_AI-XDR_하이브리드_관제_기획안.md) is explicitly a proposal/planning document (기획안, v2.0) framed as a template for colleagues to build the integration, not a record of an applied configuration.",
+          "owner_check": "Confirm with the deployment owner whether the described pfSense URL Table Alias and HAProxy-to-SIEM syslog forwarding are actually configured and live, and whether that log stream captures the full request URI."
+        },
+        {
+          "fingerprint": "decoy.xff-spoofed-ip-block-amplification",
+          "title": "decoy.py's auto-block may be spoofable via X-Forwarded-For to block an arbitrary third-party IP",
+          "blocker": "Whether the pfSense/HAProxy edge in front of this app strips or merely appends to a client-supplied X-Forwarded-For header is a config fact with no corresponding file in this repository.",
+          "owner_check": "Inspect the live pfSense/HAProxy X-Forwarded-For handling directive; separately, send one request with a forged X-Forwarded-For through the real ingress to a decoy path and check whether the resulting block targets the forged IP."
+        },
+        {
+          "fingerprint": "supplychain.messenger-setup.no-rollback-binding",
+          "title": "Messenger auto-update signed payload has no version/rollback binding",
+          "blocker": "Exploitability end-to-end depends on the separate (not-in-this-repo) NEXUS Messenger client independently enforcing a minimum-version/downgrade check beyond raw signature validity.",
+          "owner_check": "Read the separate messenger-client repository's update-apply logic for a minimum-version check; if absent, escalate to a confirmed rollback finding in a future run."
+        }
+      ],
+      "rejected": [
+        {
+          "fingerprint": "ai.build-context.unsanitized-cross-user-freetext",
+          "title": "AI chat context-assembly's indirect-injection sanitizer applied inconsistently across content categories",
+          "reason": "True at the code level, but the actual anti-injection boundary (a structural data/instruction delimiter) is applied uniformly regardless, and the one model-callable sensitive tool independently re-authorizes against the real caller's permissions -- no cross-principal authority or disclosure boundary is actually crossed. Retained as a hardening/logging-consistency note, not a vulnerability."
+        },
+        {
+          "fingerprint": "permissions.security-dashboard.sec-admin-dept-bypass",
+          "title": "security.dashboard permission lets any sec_admin-role account in regardless of department",
+          "reason": "True at the code level, but permissions.py's own inline comment for this exact rule documents sec_admin as a standalone, department-independent qualifying role, matching the identical, intentional pattern for finance_admin/hr_admin. Reads as intentional design, not a bug."
+        }
+      ],
+      "relationship_to_2026_10_17_pass": "The earlier pass's conclusions on SQL injection, XSS, upload handling, approval-workflow locking, and secrets hygiene are independently corroborated by this run. This run's three confirmed findings sit in surface area the earlier pass's focus-area list did not explicitly enumerate (admin-blueprint permission-decorator completeness, AI-XDR automated-response gating, SSE/thread-pool availability), consistent with that pass's own disclosed scope rather than a contradiction of it."
+    }
+  ]
 }

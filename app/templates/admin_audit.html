@@ -146,7 +146,7 @@
 
   <div class="sheet">
     <h2>현재 잠긴 계정</h2>
-    {% if locked %}<ul class="plain">{% for u in locked %}<li>{{ u.username }} <span class="hint">{{ u.dept }} · {{ u.locked_until.strftime('%m-%d %H:%M') }}까지</span></li>{% endfor %}</ul>{% else %}<p class="hint">없음</p>{% endif %}
+    {% if locked %}<ul class="plain">{% for u in locked %}<li>{{ u.username }} <span class="hint">{{ u.dept }} · {{ u.locked_until|kst('%m-%d %H:%M') }}까지</span></li>{% endfor %}</ul>{% else %}<p class="hint">없음</p>{% endif %}
   </div>
 </div>
 

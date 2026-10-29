@@ -58,7 +58,7 @@
   <h2>내 예약</h2>
   {% if mine %}
   <ul class="plain">
-    {% for m in mine %}<li>{{ m.start_at.strftime('%Y-%m-%d %H:%M') }}~{{ m.end_at.strftime('%H:%M') }} · {{ m.resource }} <span class="hint">{{ m.purpose }}</span>
+    {% for m in mine %}<li>{{ m.start_at|kst('%Y-%m-%d %H:%M') }}~{{ m.end_at|kst('%H:%M') }} · {{ m.resource }} <span class="hint">{{ m.purpose }}</span>
       <form method="post" action="{{ url_for('work.reservation_cancel', reservation_id=m.id) }}" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn small">취소</button>

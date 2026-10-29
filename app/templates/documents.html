@@ -13,7 +13,7 @@
       {% for d in docs %}
         <tr>
           <td><a href="{{ url_for('portal.confidential_document' if confidential else 'portal.document', doc_id=d.id) }}">{{ d.title }}</a></td>
-          <td class="num">{{ d.created_at.strftime('%Y-%m-%d') }}</td>
+          <td class="num">{{ d.created_at|kst('%Y-%m-%d') }}</td>
         </tr>
       {% endfor %}
       </tbody>

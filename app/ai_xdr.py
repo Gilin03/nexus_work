@@ -542,6 +542,19 @@ def _policy_threshold_error(assessment, config):
     return ""
 
 
+_BLOCK_APPROVAL_ERROR_KOR = {
+    "assessment_not_pending": "승인 대기 상태가 아닙니다.",
+    "action_not_recommended": "IP 차단 권고 항목이 아닙니다.",
+    "invalid_or_missing_ip": "출발지 IP가 올바르지 않거나 식별되지 않았습니다.",
+    "protected_ip": "시스템 보호 대상 IP(차단 불가)입니다.",
+    "ip_block_gate_closed": "방화벽 자동 차단 게이트가 비활성화되어 있습니다.",
+    "approval_not_allowed": "보안 정책에 따라 수동 승인이 제한되어 있습니다.",
+    "verdict_not_malicious": "악성 침해(MALICIOUS) 판정 항목만 차단 가능합니다.",
+    "score_below_threshold": "위험도 점수가 정책 임계치에 미달합니다.",
+    "confidence_below_threshold": "AI 판정 신뢰도가 정책 임계치에 미달합니다.",
+}
+
+
 def _block_approval_error(assessment, config):
     """명시적인 관리자 차단 승인에 필요한 최소 조건만 확인한다."""
     if assessment.get("status") != "PENDING":
@@ -602,6 +615,11 @@ def evaluate_policy(assessment, summary, config, now=None):
         reason = "auto_disabled"
     if not reason and str(config.get("XDR_RESPONSE_MODE", "dry-run")).lower() != "live":
         reason = "dry_run"
+    if not reason and config.get("XDR_IP_BLOCK_ENABLED", False) not in (True, 1, "1"):
+        # 사람 승인 경로(_block_approval_error)와 동일한 킬스위치. 자동 차단 경로만 이 게이트를
+        # 건너뛰면 XDR_IP_BLOCK_ENABLED=0 으로 "아직 실제 차단 없음"을 기대하는 운영자가
+        # 의도치 않게 실제 IP 차단을 당할 수 있다(VULN-FINDINGS.md 2026-10-29 MEDIUM #2).
+        reason = "ip_block_gate_closed"
     return {"phase": phase, "auto_candidate": auto_candidate, "auto_allowed": not reason,
             "approval_allowed": False, "reason": reason or "policy_passed"}
 
@@ -772,10 +790,14 @@ def list_assessments(limit=50):
         if not isinstance(row["ticket_ids"], list):
             row["ticket_ids"] = []
         row["block_approval_error"] = _block_approval_error(row, current_app.config)
+        row["block_approval_error_ko"] = _BLOCK_APPROVAL_ERROR_KOR.get(row["block_approval_error"], row["block_approval_error"])
         row["reasoning"] = koreanize_reasoning(row.get("reasoning") or "")
         for key in ("first_seen", "last_seen"):
             if row.get(key) is not None:
                 row[key + "_kst"] = _parse_datetime(row[key], assume_utc=True).astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+        for key in ("decided_at", "created_at"):
+            if row.get(key) is not None:
+                row[key + "_kst"] = _parse_datetime(row[key], assume_utc=True).astimezone(KST).strftime("%Y-%m-%d %H:%M:%S")
     return rows
 
 

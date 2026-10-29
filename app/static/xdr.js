@@ -129,12 +129,12 @@
         blockBtn +
         '<button class="btn-xdr btn-xdr-reject" name="decision" value="REJECTED">' + rejectLabel + '</button>' +
         '<button class="btn-xdr btn-xdr-fp" name="decision" value="FALSE_POSITIVE">🛡️ 오탐(False Positive) 예외</button>' +
-        (a.block_approval_error ? '<div style="font-size: 0.72rem; color: #dc2626; margin-top: 2px;">⚠️ ' + a.block_approval_error + '</div>' : '') +
+        (a.block_approval_error ? '<div style="font-size: 0.72rem; color: #dc2626; margin-top: 2px;">⚠️ ' + (a.block_approval_error_ko || a.block_approval_error) + '</div>' : '') +
         '</form>';
     } else {
       actionHtml = '<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; font-size: 0.78rem;">' +
         '<div style="font-weight: 700; color: #334155;">✓ 처리 완료</div>' +
-        '<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 3px;">' + (a.decided_at || '자동/승인 처리됨') + '</div>' +
+        '<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 3px;">' + (a.decided_at_kst || a.decided_at || '자동/승인 처리됨') + '</div>' +
         '</div>';
     }
 
