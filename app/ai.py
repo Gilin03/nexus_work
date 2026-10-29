@@ -29,8 +29,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONF_MARKER_RE = re.compile(r"NXC-[A-Z]{3}-[0-9A-Z]{4}")
 INTERNAL_TOKEN_RE = re.compile(r"nxapi_[A-Za-z0-9_-]{8,}")
 
-ALLOWED_PROVIDERS = ("auto", "groq", "ollama", "gemini", "builtin")
-CLOUD_PROVIDERS = ("groq", "gemini")             # 사내 자료가 외부 서버로 나가는 제공자
+ALLOWED_PROVIDERS = ("auto", "groq", "ollama", "gemini", "nvidia", "builtin")
+CLOUD_PROVIDERS = ("groq", "gemini", "nvidia")             # 사내 자료가 외부 서버로 나가는 제공자
 GROQ_FALLBACK_MODELS = ("openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b")
 
 SYSTEM_PROMPT = (
@@ -413,6 +413,30 @@ def _call_gemini_tool_selection(cred: str, model: str, messages: list[dict], tim
     return "".join(p.get("text", "") for p in parts)
 
 
+
+def _call_nvidia(cred: str, model: str, messages: list[dict], timeout: int, base_url: str = "") -> str:
+    url = (base_url or "https://integrate.api.nvidia.com/v1").rstrip("/") + "/chat/completions"
+    payload = {"model": model, "messages": messages, "temperature": 0.2, "max_tokens": 1500}
+    data = _post_json(url, payload, {"Authorization": f"Bearer {cred}"}, timeout)
+    choices = data.get("choices") or []
+    if not choices:
+        return ""
+    return (choices[0].get("message") or {}).get("content") or ""
+
+
+def _call_nvidia_tool_selection(cred: str, model: str, messages: list[dict], timeout: int, base_url: str = "") -> str:
+    url = (base_url or "https://integrate.api.nvidia.com/v1").rstrip("/") + "/chat/completions"
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0,
+        "max_tokens": 32,
+        "response_format": {"type": "json_object"},
+    }
+    data = _post_json(url, payload, {"Authorization": f"Bearer {cred}"}, timeout)
+    choices = data.get("choices") or []
+    return ((choices[0].get("message") or {}).get("content") or "") if choices else ""
+
 def _select_protected_tool(provider: str, cfg: dict, messages: list[dict], timeout: int) -> str | None:
     selected = None
     if provider == "groq":
@@ -427,6 +451,14 @@ def _select_protected_tool(provider: str, cfg: dict, messages: list[dict], timeo
     elif provider == "gemini":
         selected = _call_gemini_tool_selection(
             cfg.get("GEMINI_API_KEY", ""), cfg.get("GEMINI_MODEL", "gemini-2.0-flash"), messages, timeout
+        )
+    elif provider == "nvidia":
+        selected = _call_nvidia_tool_selection(
+            cfg.get("NVIDIA_API_KEY", ""),
+            cfg.get("NVIDIA_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct"),
+            messages,
+            timeout,
+            base_url=cfg.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
         )
     return parse_tool_action_response(selected or "")
 
@@ -527,7 +559,7 @@ def _effective_cfg(cfg: dict) -> dict:
         merged = dict(cfg)
         for k, v in dotenv_values(BASE_DIR / ".env").items():
             if k in ("AI_PROVIDER", "AI_TIMEOUT", "OLLAMA_BASE_URL", "OLLAMA_MODEL",
-                     "GEMINI_API_KEY", "GEMINI_MODEL", "GROQ_API_KEY", "GROQ_MODEL") and v is not None:
+                     "GEMINI_API_KEY", "GEMINI_MODEL", "GROQ_API_KEY", "GROQ_MODEL", "NVIDIA_API_KEY", "NVIDIA_MODEL", "NVIDIA_BASE_URL") and v is not None:
                 merged[k] = v.strip()
         return merged
     return cfg
@@ -552,6 +584,8 @@ def resolve_provider(cfg: dict, choice: str | None = None) -> str:
     cfg = _effective_cfg(cfg)
     provider = (choice or selected_choice(cfg) or "placeholder").strip().lower()
     if provider == "auto":
+        if cfg.get("NVIDIA_API_KEY"):
+            return "nvidia"
         if cfg.get("GEMINI_API_KEY"):
             return "gemini"
         if cfg.get("GROQ_API_KEY"):
@@ -573,6 +607,8 @@ def provider_options(cfg: dict) -> list[tuple[str, str]]:
         ("ollama", f"로컬 Ollama ({ollama_model} · 내 PC, 자료가 밖으로 안 나감 · 답변 최대 1분)"),
         ("builtin", "내장 사내 어시스턴트 (즉시 응답)"),
     ]
+    if cfg.get("NVIDIA_API_KEY"):
+        opts.insert(1, ("nvidia", f"NVIDIA NIM ({cfg.get('NVIDIA_MODEL', 'nvidia/llama-3.1-nemotron-70b-instruct')} · 클라우드 · 빠름)"))
     if cfg.get("GEMINI_API_KEY"):
         opts.insert(1, ("gemini", f"Google Gemini ({cfg.get('GEMINI_MODEL', 'gemini-2.0-flash')})"))
     return opts
@@ -652,6 +688,23 @@ def ai_responder(user: dict, message: str, history: list[dict]) -> str:
         if not cred:
             raise RuntimeError("GEMINI_API_KEY 가 설정되지 않았습니다.")
         reply = _call_gemini(cred, cfg.get("GEMINI_MODEL", "gemini-2.0-flash"), sys_text, msgs, timeout)
+    elif provider == "nvidia":
+        cred = cfg.get("NVIDIA_API_KEY", "")
+        if not cred:
+            raise RuntimeError("NVIDIA_API_KEY 가 설정되지 않았습니다.")
+        try:
+            reply = _call_nvidia(
+                cred,
+                cfg.get("NVIDIA_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct"),
+                msgs,
+                timeout,
+                base_url=cfg.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+            )
+        except (urllib.error.URLError, TimeoutError, OSError):
+            if choice == "auto":
+                reply = _local_smart_fallback(user, message, context)
+            else:
+                raise
     elif provider == "groq":
         cred = cfg.get("GROQ_API_KEY", "")
         if not cred:

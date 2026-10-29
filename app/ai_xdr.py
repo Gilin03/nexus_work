@@ -326,7 +326,7 @@ def _model_response(summary, assessment_id):
     cfg = current_app.config
     provider = str(cfg.get("XDR_AI_PROVIDER", "auto")).strip().lower()
     if provider == "auto":
-        provider = "groq" if cfg.get("GROQ_API_KEY") else ("ollama" if cfg.get("OLLAMA_BASE_URL") else "")
+        provider = "nvidia" if cfg.get("NVIDIA_API_KEY") else ("groq" if cfg.get("GROQ_API_KEY") else ("ollama" if cfg.get("OLLAMA_BASE_URL") else ""))
     payload = {
         "assessment_id": assessment_id,
         "threat_score": "integer 0..100",
@@ -343,6 +343,24 @@ def _model_response(summary, assessment_id):
     )
     user_text = json.dumps(_model_input(summary, cfg.get("SECRET_KEY", "")), ensure_ascii=False, separators=(",", ":"))
     timeout = max(1, min(int(cfg.get("XDR_AI_TIMEOUT", 30) or 30), 120))
+    if provider in ("nvidia", "nim"):
+        key = cfg.get("NVIDIA_API_KEY") or ""
+        if not key:
+            raise RuntimeError("provider_unavailable")
+        from .ai import _post_json
+        endpoint = str(cfg.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")).rstrip("/") + "/chat/completions"
+        model_name = cfg.get("NVIDIA_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct")
+        response_json = _post_json(
+            endpoint,
+            {
+                "model": model_name,
+                "messages": [{"role": "system", "content": system_text}, {"role": "user", "content": user_text}],
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+            },
+            {"Authorization": "Bearer " + key}, timeout,
+        )
+        return response_json["choices"][0]["message"]["content"]
     if provider == "groq":
         key = cfg.get("GROQ_API_KEY") or ""
         if not key:
