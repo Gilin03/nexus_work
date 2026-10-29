@@ -24,7 +24,7 @@ import string
 from datetime import datetime, timedelta
 
 import pymysql
-from flask import Blueprint, Response, abort, current_app, g, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, current_app, g, jsonify, redirect, render_template, request, url_for
 
 from . import audit, db, security, validators
 from .approvals import conflict, forbidden

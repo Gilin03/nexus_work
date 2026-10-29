@@ -236,3 +236,13 @@ def test_unlock_for_unknown_users_csrf_and_method(aapp, root):
     assert adm.post(f"/admin/users/{target}/unlock").status_code == 403
     assert adm.get(f"/admin/users/{target}/unlock").status_code == 405
     assert sql(root, "SELECT failed_count FROM users WHERE username='zz_emp'")[0][0] == 5
+
+
+def test_xdr_feed_returns_json(aapp, root):
+    sql(root, "UPDATE users SET dept='보안관제팀' WHERE username='zz_adm'")
+    adm = as_user(aapp, "zz_adm")
+    r = adm.get("/admin/xdr/feed")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert isinstance(data, dict)
+    assert "assessments" in data

@@ -83,6 +83,8 @@ html {
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -95,6 +97,8 @@ body {
   letter-spacing: -0.015em;
   word-break: keep-all;
   overflow-wrap: break-word;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 /* 스크롤바 모던화 */
@@ -2536,7 +2540,7 @@ table.cal ul { list-style: none; margin: 0.2rem 0 0; padding: 0; }
    ========================================================================== */
 
 /* 1단계: 화면 반분할 & 태블릿 구간 (max-width: 1080px) */
-@media (max-width: 1080px) {
+@media (max-width: 1280px) {
   /* 셸 & 레이아웃 */
   .shell {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -2953,7 +2957,8 @@ table.cal ul { list-style: none; margin: 0.2rem 0 0; padding: 0; }
   width: 100%;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  overflow-x: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   background: #ffffff;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
@@ -3117,7 +3122,7 @@ table.xdr-table tr:hover td { background-color: #f8fafc; }
   flex-wrap: wrap;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1280px) {
   /* 1. 컨테이너 여백 최적화 */
   .main:has(.xdr-sheet),
   .main:has(#xdrContainer),
