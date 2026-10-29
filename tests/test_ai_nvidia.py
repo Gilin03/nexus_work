@@ -87,3 +87,20 @@ def test_ai_xdr_nvidia_triage(app, monkeypatch):
         assert res["verdict"] == "MALICIOUS"
         assert "block_ip" in res["recommended_actions"]
         assert res["threat_score"] == 95
+
+
+def test_config_loads_nvidia_xdr_settings(monkeypatch):
+    from app.config import Config
+
+    monkeypatch.setenv("SECRET_KEY", "x" * 32)
+    monkeypatch.setenv("XDR_AI_PROVIDER", "nvidia")
+    monkeypatch.setenv("NVIDIA_API_KEY", "x")
+    monkeypatch.setenv("NVIDIA_MODEL", "meta/llama-3.2-11b-vision-instruct")
+    monkeypatch.setenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+
+    cfg = Config()
+
+    assert cfg.XDR_AI_PROVIDER == "nvidia"
+    assert bool(cfg.NVIDIA_API_KEY)
+    assert cfg.NVIDIA_MODEL == "meta/llama-3.2-11b-vision-instruct"
+    assert cfg.NVIDIA_BASE_URL == "https://integrate.api.nvidia.com/v1"
