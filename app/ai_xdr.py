@@ -408,7 +408,7 @@ def _resolve_model_target(config):
         provider = "nvidia" if config.get("NVIDIA_API_KEY") else ("groq" if config.get("GROQ_API_KEY") else ("ollama" if config.get("OLLAMA_BASE_URL") else ""))
     if provider in ("nvidia", "nim"):
         return {"provider": "nvidia", "provider_setting": provider_setting,
-                "model": config.get("NVIDIA_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct"),
+                "model": config.get("NVIDIA_MODEL", "minimaxai/minimax-m3.1-flash"),
                 "endpoint": str(config.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")).rstrip("/") + "/chat/completions"}
     if provider == "groq":
         return {"provider": "groq", "provider_setting": provider_setting,

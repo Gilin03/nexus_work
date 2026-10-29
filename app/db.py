@@ -65,7 +65,10 @@ def finish_request(resp):
     for key in ("app_db", "conf_db"):
         con = g.get(key)
         if con is not None:
-            con.commit() if ok else con.rollback()
+            try:
+                con.commit() if ok else con.rollback()
+            except Exception:
+                pass
     return resp
 
 
@@ -75,5 +78,10 @@ def close_dbs(_exc=None):
         if con is not None:
             try:
                 con.rollback()
+            except Exception:
+                pass
             finally:
-                con.close()
+                try:
+                    con.close()
+                except Exception:
+                    pass

@@ -71,7 +71,7 @@ class Config:
         self.GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
         self.GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b").strip()
         self.NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "").strip()
-        self.NVIDIA_MODEL = os.environ.get("NVIDIA_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct").strip()
+        self.NVIDIA_MODEL = os.environ.get("NVIDIA_MODEL", "minimaxai/minimax-m3.1-flash").strip()
         self.NVIDIA_BASE_URL = os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").strip()
 
         # AI-XDR is opt-in and starts in dry-run. An unset/invalid confidence keeps auto response closed.
