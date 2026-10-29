@@ -2529,23 +2529,298 @@ table.cal ul { list-style: none; margin: 0.2rem 0 0; padding: 0; }
 /* 오류 화면 */
 .error-code { font-size: 4.5rem; font-weight: 800; line-height: 1; color: var(--ink); margin: 0 0 0.5rem; letter-spacing: -0.04em; }
 
-/* 반응형 & 모바일 미디어 쿼리 */
+/* ==========================================================================
+   NEXUS WORK 전역 완벽 반응형 디자인 시스템 (Global Responsive System)
+   - 모니터 절반 분할(960px, Windows Snap), 태블릿(iPad), 모바일 전폭 완벽 대응
+   - 테이블 가로 스크롤 보호, 유연한 입력 폼 및 스택형 대시보드 그리드
+   ========================================================================== */
+
+/* 1단계: 화면 반분할 & 태블릿 구간 (max-width: 1080px) */
+@media (max-width: 1080px) {
+  /* 셸 & 레이아웃 */
+  .shell {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+  }
+  .rail {
+    display: none !important; /* 사이드바 숨김으로 콘텐츠 가로 폭 100% 확보 */
+  }
+  .main {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 1.2rem 1.2rem 3rem !important;
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  /* 상단 네비게이션 바 */
+  .topbar {
+    position: static !important;
+    height: auto !important;
+    flex-wrap: wrap !important;
+    padding: 0.5rem 1rem !important;
+  }
+  .brand {
+    padding: 0.4rem 0.6rem !important;
+    font-size: 1.1rem !important;
+  }
+  .who {
+    padding: 0.4rem 0.6rem !important;
+    gap: 0.6rem !important;
+    margin-left: auto !important;
+  }
+  .who-text span, .avatar {
+    display: none !important;
+  }
+  .topbar nav {
+    order: 3 !important;
+    flex-basis: 100% !important;
+    width: 100% !important;
+    margin: 0.35rem 0 0 !important;
+    padding: 0.35rem 0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-top: 1px solid var(--line-soft) !important;
+    display: flex !important;
+  }
+  .topbar nav > ul {
+    display: flex !important;
+    gap: 0.4rem !important;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: max-content !important;
+  }
+  .nav-group {
+    min-width: 0 !important;
+    flex: none !important;
+    position: relative !important;
+  }
+  .nav-group h2 {
+    height: 2.1rem !important;
+    padding: 0 0.75rem !important;
+    font-size: 0.88rem !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+  }
+  .drop {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    min-width: 11.5rem !important;
+    background: var(--sheet) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius-sm) !important;
+    box-shadow: var(--shadow-lg) !important;
+    z-index: 100 !important;
+  }
+
+  /* 카드 및 서류 컨테이너 */
+  .sheet {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 1.2rem 1.4rem !important;
+    box-sizing: border-box !important;
+    overflow-x: auto !important;
+  }
+  .sheet.narrow {
+    max-width: 100% !important;
+  }
+
+  /* 테이블 & 가로 스크롤 보호 */
+  .scroll {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
+  }
+  table {
+    max-width: 100% !important;
+    font-size: 0.88rem !important;
+  }
+  th, td {
+    padding: 0.65rem 0.75rem !important;
+  }
+
+  /* 폼 및 입력 컨트롤 전폭 유연화 */
+  input, select, textarea {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  label, .field {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 바로가기 버튼 및 필터 바 유연 래핑 */
+  .quick, .filter-bar, .iam-filter-actions, .soc-hero-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+
+  /* 홈 대시보드 & 통계 벤토 그리드 */
+  .home-head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.8rem !important;
+  }
+  .attend-card {
+    width: 100% !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+  }
+  .dash {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.8rem !important;
+  }
+
+  /* 보안 대시보드 반응형 */
+  .soc-hero {
+    padding: 1.2rem 1.4rem !important;
+  }
+  .soc-hero-top {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.8rem !important;
+  }
+  .soc-hero-actions {
+    width: 100% !important;
+  }
+  .defcon-bar {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.4rem !important;
+  }
+  .soc-stats {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.8rem !important;
+  }
+  .pipeline-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.8rem !important;
+  }
+  .top-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .audit-filter {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.6rem !important;
+    align-items: flex-end !important;
+  }
+  .audit-filter label {
+    flex: 1 1 140px !important;
+    min-width: 120px !important;
+  }
+  .audit-log-head {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.6rem !important;
+  }
+
+  /* 사용자 IAM 관리 */
+  .iam-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.8rem !important;
+  }
+  .iam-filter-form {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.6rem !important;
+  }
+  .iam-filter-item-lg, .iam-filter-item-md, .iam-filter-item-sm {
+    flex: 1 1 150px !important;
+    min-width: 130px !important;
+  }
+  .iam-filter-actions {
+    width: 100% !important;
+  }
+
+  /* 전자결재 공문서 서명란 */
+  .seals {
+    overflow-x: auto !important;
+    max-width: 100% !important;
+    padding-bottom: 0.5rem !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* 차단 IP 수동 등록 폼 */
+  .grid-form {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.8rem !important;
+    align-items: flex-end !important;
+  }
+  .grid-form .form-row {
+    flex: 1 1 170px !important;
+    min-width: 130px !important;
+  }
+
+  /* 마스터-디테일 감사 로그 모달 */
+  .modal-info-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .audit-detail-head {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.6rem !important;
+  }
+}
+
+/* 2단계: 모바일 및 소형 뷰포트 전폭 구간 (max-width: 860px) */
 @media (max-width: 860px) {
-  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .topbar { position: static; height: auto; flex-wrap: wrap; padding: 0.5rem; }
-  .brand { padding: 0.5rem 0.8rem; }
-  .who { padding: 0.5rem 0.8rem; gap: 0.6rem; margin-left: auto; }
-  .who-text span, .avatar { display: none; }
-  .topbar nav { order: 3; flex-basis: 100%; margin: 0; overflow-x: auto; border-top: 1px solid var(--line-soft); padding: 0.3rem 0; }
-  .nav-group { min-width: 0; flex: none; }
-  .nav-group h2 { height: 2.2rem; padding: 0 0.8rem; font-size: 0.9rem; }
-  .drop { position: static; opacity: 1; pointer-events: auto; transform: none; display: flex; padding: 0; border: 0; box-shadow: none; background: transparent; }
-  .drop a { padding: 0.4rem 0.6rem; }
-  .rail { display: none; }
-  .main { padding: 1.2rem 1rem 2rem; }
-  h1 { font-size: 1.55rem; }
-  .sheet { padding: 1.1rem 1.2rem; }
-  table { font-size: 0.9rem; }
+  .main {
+    padding: 0.8rem 0.7rem 2.5rem !important;
+  }
+  .sheet {
+    padding: 0.9rem 0.9rem !important;
+  }
+  h1 {
+    font-size: 1.35rem !important;
+  }
+  .brand {
+    font-size: 1.02rem !important;
+  }
+  .who a {
+    display: none !important;
+  }
+  .stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .soc-stats {
+    grid-template-columns: 1fr !important;
+  }
+  .pipeline-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .iam-stats {
+    grid-template-columns: 1fr !important;
+  }
+  .audit-filter label,
+  .iam-filter-item-lg, .iam-filter-item-md, .iam-filter-item-sm,
+  .grid-form .form-row {
+    flex: 1 1 100% !important;
+    min-width: 100% !important;
+  }
+  table.facts th, table.kv th {
+    width: auto !important;
+  }
+  table.facts tr, table.kv tr {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0.35rem 0 !important;
+  }
+  table.facts td, table.kv td {
+    padding: 0.15rem 0 !important;
+    border-bottom: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
