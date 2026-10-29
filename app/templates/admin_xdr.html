@@ -1,50 +1,264 @@
 {% extends "base.html" %}
 {% block title %}AI-XDR 평가 · NEXUS SOC{% endblock %}
 {% block content %}
-<section class="sheet">
-  <h1>AI-XDR 2차 판정</h1>
-  <p class="hint">보안 이벤트 메타데이터만 평가합니다. AI 판정은 허용된 정책 gate와 관리자 결정 없이 IP 차단을 실행하지 않습니다.</p>
-  <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
-    <a class="btn" href="{{ url_for('admin.audit_log') }}">📊 보안 대시보드</a>
-    <a class="btn" href="{{ url_for('admin.list_blocked_ips') }}">🚫 차단 IP 관리</a>
+<section class="sheet" style="max-width: 100%;">
+  <style>
+    /* AI-XDR 한눈에 보기 최적화 스타일 (가로 스크롤 완전 제거) */
+    .xdr-sheet { width: 100%; box-sizing: border-box; }
+    .xdr-table-wrap {
+      width: 100%;
+      overflow-x: hidden;
+      border: 1px solid var(--line, #e2e8f0);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    table.xdr-table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+    table.xdr-table th {
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 700;
+      font-size: 0.82rem;
+      padding: 10px 12px;
+      border-bottom: 2px solid #e2e8f0;
+      text-align: left;
+    }
+    table.xdr-table td {
+      padding: 12px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    table.xdr-table tr:hover { background-color: #f8fafc; }
+    
+    /* 컬럼별 너비 지정 (합계 100%) */
+    .col-time { width: 14%; }
+    .col-target { width: 15%; }
+    .col-rule { width: 13%; }
+    .col-verdict { width: 38%; }
+    .col-action { width: 20%; }
+
+    /* 배지 & 태그 공통 */
+    .xdr-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1.3;
+      letter-spacing: 0.3px;
+    }
+    .badge-malicious { background: #fee2e2; color: #b91c1c; border: 1px solid #f87171; }
+    .badge-suspicious { background: #fef3c7; color: #b45309; border: 1px solid #fbbf24; }
+    .badge-benign { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .badge-review { background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
+    
+    .badge-rule { background: #e0f2fe; color: #0369a1; font-family: monospace; font-weight: 700; }
+    .badge-pending { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+    .badge-completed { background: #f1f5f9; color: #64748b; }
+    .badge-rec { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; font-size: 0.72rem; }
+
+    /* 관리자 버튼 그리드 */
+    .xdr-btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+    .xdr-btn-grid button {
+      padding: 5px 4px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .btn-block-ip { background: #dc2626; color: #fff; border: 1px solid #b91c1c; }
+    .btn-block-ip:hover:not(:disabled) { background: #b91c1c; }
+    .btn-block-ip:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-approve { background: #2563eb; color: #fff; border: 1px solid #1d4ed8; }
+    .btn-approve:hover { background: #1d4ed8; }
+    .btn-reject { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+    .btn-reject:hover { background: #e2e8f0; }
+    .btn-fp { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+    .btn-fp:hover { background: #f1f5f9; }
+
+    .reasoning-text {
+      margin-top: 6px;
+      font-size: 0.82rem;
+      color: #334155;
+      background: #f8fafc;
+      padding: 6px 9px;
+      border-radius: 5px;
+      border: 1px solid #edf2f7;
+      line-height: 1.4;
+    }
+  </style>
+
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+    <div>
+      <h1 style="margin: 0 0 0.3rem 0; font-size: 1.5rem;">AI-XDR 2차 판정</h1>
+      <p class="hint" style="margin: 0;">보안 이벤트 메타데이터만 실시간 평가합니다. 허용된 정책 및 관리자 승인 하에 IP 차단을 수행합니다.</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <a class="btn" href="{{ url_for('admin.audit_log') }}" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">📊 보안 대시보드</a>
+      <a class="btn" href="{{ url_for('admin.list_blocked_ips') }}" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">🚫 차단 IP 관리</a>
+    </div>
   </div>
+
   {% if not xdr_enabled %}<p class="notice" role="status">AI-XDR 수집은 설정에서 비활성화되어 있습니다.</p>{% endif %}
   {% if unavailable %}<p class="alert" role="alert">AI-XDR 저장소를 사용할 수 없습니다. 테이블 migration 상태를 확인하세요.</p>{% endif %}
   {% if result %}<p class="notice" role="status">결정이 기록되었습니다: {{ result }}</p>{% endif %}
+
   {% if assessments %}
-  <div class="scroll">
-    <table class="audit">
-      <thead><tr><th>마지막 시각</th><th>출발지/계정</th><th>Rule / 이벤트</th><th>평가</th><th>상태·정책</th><th>기존 티켓</th><th>관리자 결정</th></tr></thead>
+  <div class="xdr-table-wrap">
+    <table class="xdr-table">
+      <thead>
+        <tr>
+          <th class="col-time">마지막 시각 / 상태</th>
+          <th class="col-target">출발지 / 계정</th>
+          <th class="col-rule">Rule / 이벤트</th>
+          <th class="col-verdict">AI 판정 & 근거 요약</th>
+          <th class="col-action">관리자 조치 (Action)</th>
+        </tr>
+      </thead>
       <tbody>
       {% for a in assessments %}
         <tr>
-          <td>{{ a.last_seen_kst or a.first_seen_kst }}</td>
-          <td class="mono">{{ a.src_ip or 'IP 없음' }}<br>{{ a.user_names | join(', ') }}</td>
-          <td>{{ a.rule_ids | join(', ') }}<br>{{ a.event_types | join(', ') }}<br>{{ a.event_count }}건</td>
-          <td>{{ a.verdict }}<br>점수 {{ a.threat_score }} · 신뢰도 {{ '%.3f'|format(a.confidence or 0) }}<br>{{ a.reasoning }}</td>
-          <td>{{ a.status }}<br>{{ a.policy_mode }} · {{ a.policy_reason }}
-            {% if a.response_result and a.response_result.auto_candidate %}<br><strong>자동 차단 후보</strong>{% endif %}
-            <br>권고: {{ a.recommended_actions | join(', ') }}</td>
-          <td>{% if a.ticket_ids %}{{ a.ticket_ids | join(', ') }}{% elif a.incident_ticket_id %}NX-DB-{{ '%06d'|format(a.incident_ticket_id) }}{% else %}연결 없음{% endif %}</td>
-          <td>
-          {% if a.status == 'PENDING' %}
-            <form method="post" action="{{ url_for('admin.decide_xdr_assessment', assessment_id=a.assessment_id) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="btn primary" name="decision" value="APPROVED">승인</button>
-              {% if 'block_ip' in a.recommended_actions %}
-                <button class="btn danger" name="decision" value="APPROVED_BLOCK_IP"{% if a.block_approval_error %} disabled title="{{ a.block_approval_error }}"{% endif %}>차단 승인</button>
+          <!-- 1. 시간 및 상태 -->
+          <td class="col-time">
+            <div style="font-weight: 600; font-size: 0.82rem; color: #1e293b;">
+              {{ a.last_seen_kst or a.first_seen_kst }}
+            </div>
+            <div style="margin-top: 5px;">
+              {% if a.status == 'PENDING' %}
+                <span class="xdr-badge badge-pending">대기중 (PENDING)</span>
+              {% else %}
+                <span class="xdr-badge badge-completed">{{ a.status }}</span>
               {% endif %}
-              <button class="btn" name="decision" value="REJECTED">거부</button>
-              <button class="btn" name="decision" value="FALSE_POSITIVE">오탐</button>
-              {% if 'block_ip' in a.recommended_actions and a.block_approval_error %}<small class="hint">차단 승인 불가: {{ a.block_approval_error }}</small>{% endif %}
-            </form>
-          {% else %}{{ a.decided_at or '처리 완료' }}{% endif %}
+            </div>
+            <div style="margin-top: 4px; font-size: 0.74rem; color: #64748b;">
+              {% if a.ticket_ids %}
+                티켓: {{ a.ticket_ids | join(', ') }}
+              {% elif a.incident_ticket_id %}
+                티켓: NX-DB-{{ '%06d'|format(a.incident_ticket_id) }}
+              {% endif %}
+            </div>
+          </td>
+
+          <!-- 2. 출발지 및 계정 -->
+          <td class="col-target">
+            <div style="font-family: monospace; font-weight: 700; color: #0f172a; font-size: 0.9rem;">
+              {{ a.src_ip or 'IP 없음' }}
+            </div>
+            <div style="margin-top: 4px; font-size: 0.82rem; color: #475569;">
+              {% if a.user_names %}
+                👤 {{ a.user_names | join(', ') }}
+              {% else %}
+                <span style="color: #94a3b8;">계정 미식별</span>
+              {% endif %}
+            </div>
+          </td>
+
+          <!-- 3. Rule 및 이벤트 -->
+          <td class="col-rule">
+            <div>
+              {% for rid in a.rule_ids %}
+                <span class="xdr-badge badge-rule">{{ rid }}</span>
+              {% endfor %}
+            </div>
+            <div style="margin-top: 4px; font-size: 0.8rem; color: #334155; font-weight: 500;">
+              {{ a.event_types | join(', ') }}
+            </div>
+            <div style="font-size: 0.74rem; color: #64748b; margin-top: 2px;">
+              총 <strong>{{ a.event_count }}</strong>건 발생
+            </div>
+          </td>
+
+          <!-- 4. AI 판정 & 근거 요약 -->
+          <td class="col-verdict">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              {% if a.verdict == 'MALICIOUS' %}
+                <span class="xdr-badge badge-malicious">🚨 MALICIOUS (악성)</span>
+              {% elif a.verdict == 'SUSPICIOUS' %}
+                <span class="xdr-badge badge-suspicious">⚠️ SUSPICIOUS (의심)</span>
+              {% elif a.verdict == 'BENIGN' %}
+                <span class="xdr-badge badge-benign">✅ BENIGN (정상)</span>
+              {% else %}
+                <span class="xdr-badge badge-review">🔍 REVIEW (검토)</span>
+              {% endif %}
+
+              <span style="font-size: 0.8rem; color: #475569; font-weight: 600;">
+                위협 {{ a.threat_score }}점 · 신뢰도 {{ '%.1f'|format((a.confidence or 0)*100) }}%
+              </span>
+
+              {% if a.recommended_actions %}
+                {% for act in a.recommended_actions %}
+                  {% if act == 'block_ip' %}
+                    <span class="xdr-badge badge-rec">권고: IP 차단</span>
+                  {% elif act == 'notify_only' %}
+                    <span class="xdr-badge" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">권고: 알림</span>
+                  {% else %}
+                    <span class="xdr-badge" style="background:#f8fafc; color:#475569;">권고: {{ act }}</span>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+
+              {% if a.response_result and a.response_result.auto_candidate %}
+                <span class="xdr-badge" style="background:#fee2e2; color:#b91c1c; font-weight:800;">⚡ 자동 차단 후보</span>
+              {% endif %}
+            </div>
+
+            <!-- 판정 근거 (Reasoning) -->
+            <div class="reasoning-text">
+              {{ a.reasoning }}
+            </div>
+
+            <div style="font-size: 0.72rem; color: #64748b; margin-top: 4px;">
+              정책: {{ a.policy_mode }} ({{ a.policy_reason }})
+            </div>
+          </td>
+
+          <!-- 5. 관리자 조치 버튼 -->
+          <td class="col-action">
+            {% if a.status == 'PENDING' %}
+              <form method="post" action="{{ url_for('admin.decide_xdr_assessment', assessment_id=a.assessment_id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="xdr-btn-grid">
+                  {% if 'block_ip' in a.recommended_actions %}
+                    <button class="btn-block-ip" name="decision" value="APPROVED_BLOCK_IP"{% if a.block_approval_error %} disabled title="{{ a.block_approval_error }}"{% endif %}>🚫 차단 승인</button>
+                    <button class="btn-approve" name="decision" value="APPROVED">✓ 승인</button>
+                  {% else %}
+                    <button class="btn-approve" name="decision" value="APPROVED" style="grid-column: span 2;">✓ 승인</button>
+                  {% endif %}
+                  <button class="btn-reject" name="decision" value="REJECTED">거부</button>
+                  <button class="btn-fp" name="decision" value="FALSE_POSITIVE">오탐</button>
+                </div>
+                {% if 'block_ip' in a.recommended_actions and a.block_approval_error %}
+                  <div style="font-size: 0.72rem; color: #dc2626; margin-top: 4px;">차단 불가: {{ a.block_approval_error }}</div>
+                {% endif %}
+              </form>
+            {% else %}
+              <div style="font-size: 0.8rem; color: #475569;">
+                <div style="font-weight: 600;">✓ 처리 완료</div>
+                <div style="font-size: 0.74rem; color: #94a3b8; margin-top: 2px;">{{ a.decided_at or '' }}</div>
+              </div>
+            {% endif %}
           </td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
-  {% else %}<p class="hint">표시할 AI-XDR 평가가 없습니다.</p>{% endif %}
+  {% else %}
+    <p class="hint">표시할 AI-XDR 평가가 없습니다.</p>
+  {% endif %}
 </section>
 {% endblock %}
