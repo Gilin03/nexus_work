@@ -5,7 +5,10 @@ import ipaddress
 import json
 import math
 import re
+import socket
 import urllib.error
+from contextvars import ContextVar
+from urllib.parse import urlsplit
 import urllib.request
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -35,6 +38,7 @@ MODEL_EVENT_FIELDS = {
     "tool_name", "resource_class", "pattern_id", "decision", "severity", "count",
     "window_seconds", "failed_attempts", "lock_request_id", "trigger_event_type",
 }
+_XDR_DIAGNOSTIC_CONTEXT = ContextVar("xdr_diagnostic_context", default=None)
 
 
 def _text(value, limit=180):
@@ -397,18 +401,151 @@ def _model_input(summary, actor_secret):
     return result
 
 
+def _resolve_model_target(config):
+    provider_setting = str(config.get("XDR_AI_PROVIDER", "auto")).strip().lower()
+    provider = provider_setting
+    if provider == "auto":
+        provider = "nvidia" if config.get("NVIDIA_API_KEY") else ("groq" if config.get("GROQ_API_KEY") else ("ollama" if config.get("OLLAMA_BASE_URL") else ""))
+    if provider in ("nvidia", "nim"):
+        return {"provider": "nvidia", "provider_setting": provider_setting,
+                "model": config.get("NVIDIA_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct"),
+                "endpoint": str(config.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")).rstrip("/") + "/chat/completions"}
+    if provider == "groq":
+        return {"provider": "groq", "provider_setting": provider_setting,
+                "model": config.get("GROQ_MODEL", "openai/gpt-oss-120b"),
+                "endpoint": "https://api.groq.com/openai/v1/chat/completions"}
+    if provider == "ollama":
+        return {"provider": "ollama", "provider_setting": provider_setting,
+                "model": config.get("OLLAMA_MODEL", "qwen2.5:7b"),
+                "endpoint": str(config.get("OLLAMA_BASE_URL", "")).rstrip("/") + "/api/chat"}
+    return {"provider": provider, "provider_setting": provider_setting, "model": "", "endpoint": ""}
+
+
+def _safe_endpoint(endpoint):
+    try:
+        parsed = urlsplit(str(endpoint))
+        if not parsed.scheme or not parsed.hostname:
+            return "invalid_endpoint"
+        host = parsed.hostname
+        if parsed.port:
+            host += f":{parsed.port}"
+        path = re.sub(r"/[^/]{32,}(?=/|$)", "/[REDACTED]", parsed.path)
+        return f"{parsed.scheme}://{host}{path}"[:200]
+    except (TypeError, ValueError):
+        return "invalid_endpoint"
+
+
+def _safe_exception_message(exc, config):
+    if isinstance(exc, urllib.error.HTTPError):
+        message = f"HTTP Error {exc.code}: {exc.reason}"
+    elif isinstance(exc, json.JSONDecodeError):
+        message = f"{exc.msg} at position {exc.pos}"
+    elif isinstance(exc, urllib.error.URLError):
+        reason = exc.reason
+        message = f"{type(reason).__name__}: {reason}" if isinstance(reason, BaseException) else str(reason)
+    else:
+        message = str(exc) or type(exc).__name__
+    for key in ("NVIDIA_API_KEY", "GROQ_API_KEY", "SECRET_KEY"):
+        secret = str(config.get(key) or "")
+        if len(secret) >= 6:
+            message = message.replace(secret, "[REDACTED]")
+    message = re.sub(r"(?i)\bbearer\s+[^\s,;]+", "Bearer [REDACTED]", message)
+    message = re.sub(r"(?i)\b(api[_ -]?key|token|authorization|secret)\s*[:=]\s*[^,;\s]+", r"\1=[REDACTED]", message)
+    message = re.sub(r"(?i)\b(prompt|prompt_text|content|request_body|payload)\s*[:=].*", r"\1=[REDACTED]", message)
+    message = re.sub(r"https?://[^\s]+", lambda match: _safe_endpoint(match.group(0)), message)
+    return re.sub(r"[\x00-\x1f\x7f]+", " ", message)[:300]
+
+
+def _mark_provider_request(*, attempted=False, response_received=False, http_status=None):
+    diagnostic = _XDR_DIAGNOSTIC_CONTEXT.get()
+    if diagnostic is None:
+        return
+    diagnostic["request_attempted"] |= attempted
+    diagnostic["http_response_received"] |= response_received
+    if http_status is not None:
+        diagnostic["http_status"] = http_status
+
+
+def _post_provider_json(endpoint, payload, headers, timeout):
+    from .ai import _post_json
+
+    _mark_provider_request(attempted=True)
+    try:
+        result = _post_json(endpoint, payload, headers, timeout)
+    except urllib.error.HTTPError as exc:
+        _mark_provider_request(response_received=True, http_status=exc.code)
+        raise
+    except json.JSONDecodeError:
+        _mark_provider_request(response_received=True, http_status=200)
+        raise
+    else:
+        _mark_provider_request(response_received=True, http_status=200)
+        return result
+
+
+def _is_timeout_exception(exc):
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return True
+    return isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, (TimeoutError, socket.timeout))
+
+
 def triage(summary, assessment_id):
     try:
-        return parse_model_result(_model_response(summary, assessment_id), assessment_id)
-    except Exception:  # provider, timeout, response shape and parse errors all fail closed.
+        config = current_app.config
+        target = _resolve_model_target(config)
+    except Exception:
         return fail_safe_result(assessment_id)
+    diagnostic = {
+        **target,
+        "request_attempted": False,
+        "http_response_received": False,
+        "http_status": None,
+    }
+    context_token = _XDR_DIAGNOSTIC_CONTEXT.set(diagnostic)
+    phase = "provider_request"
+    try:
+        raw = _model_response(summary, assessment_id)
+        phase = "strict_schema_validation"
+        return parse_model_result(raw, assessment_id)
+    except Exception as exc:  # Keep fail-safe behavior; only add bounded diagnostics.
+        if isinstance(exc, urllib.error.HTTPError):
+            _mark_provider_request(response_received=True, http_status=exc.code)
+        json_parse_failed = isinstance(exc, json.JSONDecodeError) or str(exc) == "invalid_json"
+        schema_failed = phase == "strict_schema_validation" and not json_parse_failed
+        try:
+            model = str(diagnostic.get("model") or "")
+            if not re.fullmatch(r"[A-Za-z0-9._:/-]{1,120}", model):
+                model = "[redacted]"
+            security.log_xdr_ai_failure(
+                provider=diagnostic.get("provider", ""),
+                provider_setting=diagnostic.get("provider_setting", ""),
+                model=model,
+                endpoint=_safe_endpoint(diagnostic.get("endpoint", "")),
+                exception_type=type(exc).__name__,
+                exception_message=_safe_exception_message(exc, config),
+                http_status=diagnostic.get("http_status"),
+                timeout=_is_timeout_exception(exc),
+                json_parse_failed=json_parse_failed,
+                strict_schema_validation_failed=schema_failed,
+                request_attempted=diagnostic.get("request_attempted", False),
+                http_response_received=diagnostic.get("http_response_received", False),
+                phase=phase,
+                nvidia_api_key_present=bool(config.get("NVIDIA_API_KEY")),
+                groq_api_key_present=bool(config.get("GROQ_API_KEY")),
+            )
+        except Exception:
+            pass
+        return fail_safe_result(assessment_id)
+    finally:
+        _XDR_DIAGNOSTIC_CONTEXT.reset(context_token)
 
 
 def _model_response(summary, assessment_id):
     cfg = current_app.config
-    provider = str(cfg.get("XDR_AI_PROVIDER", "auto")).strip().lower()
-    if provider == "auto":
-        provider = "nvidia" if cfg.get("NVIDIA_API_KEY") else ("groq" if cfg.get("GROQ_API_KEY") else ("ollama" if cfg.get("OLLAMA_BASE_URL") else ""))
+    target = _resolve_model_target(cfg)
+    provider = target["provider"]
+    model_name = target["model"]
+    endpoint = target["endpoint"]
     payload = {
         "assessment_id": assessment_id,
         "threat_score": "integer 0..100",
@@ -426,14 +563,11 @@ def _model_response(summary, assessment_id):
     )
     user_text = json.dumps(_model_input(summary, cfg.get("SECRET_KEY", "")), ensure_ascii=False, separators=(",", ":"))
     timeout = max(1, min(int(cfg.get("XDR_AI_TIMEOUT", 30) or 30), 120))
-    if provider in ("nvidia", "nim"):
+    if provider == "nvidia":
         key = cfg.get("NVIDIA_API_KEY") or ""
         if not key:
             raise RuntimeError("provider_unavailable")
-        from .ai import _post_json
-        endpoint = str(cfg.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")).rstrip("/") + "/chat/completions"
-        model_name = cfg.get("NVIDIA_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct")
-        response_json = _post_json(
+        response_json = _post_provider_json(
             endpoint,
             {
                 "model": model_name,
@@ -448,11 +582,10 @@ def _model_response(summary, assessment_id):
         key = cfg.get("GROQ_API_KEY") or ""
         if not key:
             raise RuntimeError("provider_unavailable")
-        from .ai import _post_json
-        response_json = _post_json(
-            "https://api.groq.com/openai/v1/chat/completions",
+        response_json = _post_provider_json(
+            endpoint,
             {
-                "model": cfg.get("GROQ_MODEL", "openai/gpt-oss-120b"),
+                "model": model_name,
                 "messages": [{"role": "system", "content": system_text}, {"role": "user", "content": user_text}],
                 "temperature": 0,
                 "response_format": {"type": "json_object"},
@@ -465,15 +598,17 @@ def _model_response(summary, assessment_id):
         if not base_url:
             raise RuntimeError("provider_unavailable")
         request_body = json.dumps({
-            "model": cfg.get("OLLAMA_MODEL", "qwen2.5:7b"),
+            "model": model_name,
             "messages": [{"role": "system", "content": system_text}, {"role": "user", "content": user_text}],
             "stream": False,
             "format": "json",
             "options": {"temperature": 0},
         }).encode("utf-8")
-        request = urllib.request.Request(base_url + "/api/chat", data=request_body,
+        request = urllib.request.Request(endpoint, data=request_body,
                                          headers={"Content-Type": "application/json"}, method="POST")
+        _mark_provider_request(attempted=True)
         with urllib.request.urlopen(request, timeout=timeout) as response:
+            _mark_provider_request(response_received=True, http_status=getattr(response, "status", 200))
             response_json = json.loads(response.read().decode("utf-8"))
         return response_json["message"]["content"]
     raise RuntimeError("provider_unavailable")

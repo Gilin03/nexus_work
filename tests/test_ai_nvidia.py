@@ -89,6 +89,107 @@ def test_ai_xdr_nvidia_triage(app, monkeypatch):
         assert res["threat_score"] == 95
 
 
+def _xdr_diagnostic_summary():
+    return {
+        "group_key": "ip:203.0.113.44",
+        "window_key": "a" * 64,
+        "rule_ids": ["R8"],
+        "event_types": ["not_found"],
+        "event_count": 1,
+        "first_seen": "2026-10-29T00:00:00+00:00",
+        "last_seen": "2026-10-29T00:00:00+00:00",
+        "events": [{"rule_id": "R8", "event_type": "not_found", "event_count": 1, "event": {}}],
+    }
+
+
+def test_ai_xdr_provider_failure_logs_safe_diagnostics(app, monkeypatch, events):
+    import urllib.error
+
+    secret = "synthetic-nvidia-key-should-not-log"
+    def fail_request(url, payload, headers, timeout):
+        raise urllib.error.HTTPError(url, 403, "Forbidden", None, None)
+
+    monkeypatch.setattr(ai, "_post_json", fail_request)
+    app.config.update({
+        "XDR_AI_PROVIDER": "nvidia", "NVIDIA_API_KEY": secret,
+        "NVIDIA_MODEL": "test/model",
+        "NVIDIA_BASE_URL": "https://example.test/v1?token=query-secret",
+        "SECRET_KEY": "x" * 40,
+    })
+    with app.app_context():
+        result = ai_xdr.triage(_xdr_diagnostic_summary(), "diag-403")
+
+    assert result["verdict"] == "REVIEW_REQUIRED"
+    assert result["threat_score"] == 0
+    record = next(event for event in events() if event["event_type"] == "xdr_ai_failure")
+    assert record["provider"] == "nvidia"
+    assert record["model"] == "test/model"
+    assert record["endpoint"] == "https://example.test/v1"
+    assert record["request_attempted"] is True
+    assert record["http_response_received"] is True
+    assert record["http_status"] == 403
+    assert record["exception_type"] == "HTTPError"
+    assert record["timeout"] is False
+    assert record["json_parse_failed"] is False
+    assert record["strict_schema_validation_failed"] is False
+    text = (app.log_path).read_text(encoding="utf-8")
+    assert secret not in text
+    assert "query-secret" not in text
+
+
+def test_ai_xdr_timeout_fallback_logs_timeout(app, monkeypatch, events):
+    import socket
+    import urllib.error
+
+    def timeout_request(url, payload, headers, timeout):
+        raise urllib.error.URLError(socket.timeout("timed out"))
+
+    monkeypatch.setattr(ai, "_post_json", timeout_request)
+    app.config.update({
+        "XDR_AI_PROVIDER": "nvidia", "NVIDIA_API_KEY": "synthetic-key",
+        "NVIDIA_MODEL": "test/model", "NVIDIA_BASE_URL": "https://example.test/v1",
+        "SECRET_KEY": "x" * 40,
+    })
+    with app.app_context():
+        result = ai_xdr.triage(_xdr_diagnostic_summary(), "diag-timeout")
+
+    assert result["verdict"] == "REVIEW_REQUIRED"
+    record = next(event for event in events() if event["event_type"] == "xdr_ai_failure")
+    assert record["exception_type"] == "URLError"
+    assert record["timeout"] is True
+    assert record["http_status"] is None
+    assert record["request_attempted"] is True
+    assert record["http_response_received"] is False
+
+
+@pytest.mark.parametrize(("response_content", "expected_parse", "expected_schema"), [
+    ("not-json", True, False),
+    (json.dumps({"assessment_id": "diag-schema"}), False, True),
+])
+def test_ai_xdr_response_validation_failure_is_logged(app, monkeypatch, events,
+                                                       response_content, expected_parse, expected_schema):
+    def fake_post_json(url, payload, headers, timeout):
+        return {"choices": [{"message": {"content": response_content}}]}
+
+    monkeypatch.setattr(ai, "_post_json", fake_post_json)
+    app.config.update({
+        "XDR_AI_PROVIDER": "nvidia", "NVIDIA_API_KEY": "synthetic-key",
+        "NVIDIA_MODEL": "test/model",
+        "NVIDIA_BASE_URL": "https://example.test/v1",
+        "SECRET_KEY": "x" * 40,
+    })
+    with app.app_context():
+        result = ai_xdr.triage(_xdr_diagnostic_summary(), "diag-schema")
+
+    assert result["verdict"] == "REVIEW_REQUIRED"
+    record = next(event for event in events() if event["event_type"] == "xdr_ai_failure")
+    assert record["request_attempted"] is True
+    assert record["http_response_received"] is True
+    assert record["http_status"] == 200
+    assert record["json_parse_failed"] is expected_parse
+    assert record["strict_schema_validation_failed"] is expected_schema
+
+
 def test_config_loads_nvidia_xdr_settings(monkeypatch):
     from app.config import Config
 
