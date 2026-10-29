@@ -39,7 +39,10 @@ GRAYLOG_FIELDS = {
     "selected_window_key", "selected_window_start", "event_rows_count", "assessment_insert_affected_rows",
     "approval_id", "requester_id", "expense_id", "steps", "board", "post_id", "attachment_id", "failed_attempts",
     "conversation_id", "members", "action_level", "lock_request_id", "trigger_event_type", "window_seconds",
-    "has_token", "token_fp", "user_agent",
+    "has_token", "token_fp", "user_agent", "provider", "provider_setting", "model", "endpoint",
+    "exception_type", "exception_message", "http_status", "timeout", "json_parse_failed",
+    "strict_schema_validation_failed", "request_attempted", "http_response_received", "phase",
+    "nvidia_api_key_present", "groq_api_key_present",
 }
 SENSITIVE_LOG_FIELDS = {
     "password", "current_password", "new_password", "confirm_password", "token", "api_token", "access_token",
@@ -283,6 +286,37 @@ def log_xdr_process_debug(*, selected_window_key, selected_window_start, event_r
     }
     if reason is not None:
         record["reason"] = str(reason)[:80]
+    _logger.info(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+
+
+def log_xdr_ai_failure(*, provider, provider_setting, model, endpoint, exception_type,
+                       exception_message, http_status=None, timeout=False,
+                       json_parse_failed=False, strict_schema_validation_failed=False,
+                       request_attempted=False, http_response_received=False, phase="provider_request",
+                       nvidia_api_key_present=False, groq_api_key_present=False):
+    """Write bounded provider diagnostics without request or event payloads."""
+    record = {
+        "ts": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+        "event_type": "xdr_ai_failure",
+        "source_component": "ai_xdr",
+        "severity": "high",
+        "reason": "triage_fallback",
+        "provider": str(provider)[:40],
+        "provider_setting": str(provider_setting)[:40],
+        "model": str(model)[:120],
+        "endpoint": str(endpoint)[:200],
+        "exception_type": str(exception_type)[:100],
+        "exception_message": str(exception_message)[:300],
+        "http_status": http_status if isinstance(http_status, int) else None,
+        "timeout": bool(timeout),
+        "json_parse_failed": bool(json_parse_failed),
+        "strict_schema_validation_failed": bool(strict_schema_validation_failed),
+        "request_attempted": bool(request_attempted),
+        "http_response_received": bool(http_response_received),
+        "phase": str(phase)[:40],
+        "nvidia_api_key_present": bool(nvidia_api_key_present),
+        "groq_api_key_present": bool(groq_api_key_present),
+    }
     _logger.info(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
 
 
