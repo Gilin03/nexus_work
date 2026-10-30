@@ -25,6 +25,17 @@ class Config:
         self.DB_CONF_USER = "nexus_conf"
         self.DB_CONF_PASSWORD = os.environ.get("NEXUS_CONF_PASSWORD", "")
 
+        # Incident 화면은 n8n의 기존 Ticket 조회/조치 webhook을 사용한다.
+        self.N8N_TICKETS_URL = os.environ.get(
+            "N8N_TICKETS_URL", "http://192.168.3.15:5678/webhook/nexus-tickets"
+        ).strip()
+        self.N8N_TICKET_ACTION_URL = os.environ.get(
+            "N8N_TICKET_ACTION_URL", "http://192.168.3.15:5678/webhook/nexus-ticket-action"
+        ).strip()
+        self.N8N_TICKET_AUTH_HEADER = os.environ.get("N8N_TICKET_AUTH_HEADER", "x-webhook-token").strip()
+        self.N8N_TICKET_AUTH_VALUE = os.environ.get("N8N_TICKET_AUTH_VALUE", "").strip()
+        self.N8N_TICKET_API_TIMEOUT = self._int_setting("N8N_TICKET_API_TIMEOUT", 5)
+
         # 세션 쿠키
         self.SESSION_COOKIE_HTTPONLY = True
         self.SESSION_COOKIE_SAMESITE = "Lax"

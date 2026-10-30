@@ -142,9 +142,10 @@ def test_same_external_ticket_with_different_rule_updates_same_local_incident(ap
     assert any("UPDATE security_incident_tickets" in sql for sql, _ in writes)
 
 
-def test_incident_list_uses_local_db_and_displays_external_id(aapp, root, monkeypatch):
+def test_incident_list_uses_existing_ticket_api_and_displays_external_id(aapp, root, monkeypatch):
     seen = []
-    monkeypatch.setattr(admin.incidents, "list_tickets", lambda: seen.append("local") or [{
+    aapp.config["XDR_ENABLED"] = False
+    monkeypatch.setattr(admin.incidents, "list_tickets", lambda: seen.append("ticket_api") or [{
         "id": 12, "display_id": "NX-DB-000086", "status": "open", "src_ip": "192.0.2.10",
         "rule_ids": ["R8"], "event_count": 35, "first_seen": "2026-10-30 01:00:00",
         "last_seen": "2026-10-30 01:05:00",
@@ -153,18 +154,66 @@ def test_incident_list_uses_local_db_and_displays_external_id(aapp, root, monkey
     html = response.get_data(as_text=True)
     assert response.status_code == 200
     assert "NX-DB-000086" in html and "ip:192.0.2.10" not in html
-    assert seen == ["local"]
+    assert "최근 AI 판정" in html
+    assert seen == ["ticket_api"]
 
 
-def test_local_ticket_queries_use_incident_tables_and_not_n8n(app, monkeypatch):
+def test_ticket_list_and_detail_use_existing_n8n_api_without_incident_db_queries(app, monkeypatch):
     calls = []
-    monkeypatch.setattr(incidents.db, "query_all", lambda sql, params=(), **_k: calls.append((sql, params)) or [])
-    monkeypatch.setattr(incidents.db, "query_one", lambda sql, params=(), **_k: calls.append((sql, params)) or None)
+    monkeypatch.setattr(incidents, "_ticket_api_request", lambda url, method="GET", **kwargs: (
+        calls.append((url, method, kwargs)) or (200, {
+            "tickets": [{"id": "NX-DB-000012", "ticket_db_id": 12, "status": "open", "rules": ["R8"]}],
+            "ticket": {"id": "NX-DB-000012", "ticket_db_id": 12, "status": "open", "rules": ["R8"]},
+            "alerts": [{"alert_id": "a-12", "rule_id": "R8", "event_type": "not_found"}],
+        })
+    ))
+    monkeypatch.setattr(incidents.db, "query_all", lambda *a, **k: pytest.fail("Ticket/alert tables must not be queried"))
+    monkeypatch.setattr(incidents.db, "query_one", lambda *a, **k: pytest.fail("Ticket/alert tables must not be queried"))
     with app.app_context():
-        assert incidents.list_tickets() == []
-        assert incidents.get_ticket(12) is None
-    assert all("security_incident_tickets" in sql for sql, _ in calls)
-    assert all("nexus-tickets" not in sql and "N8N_TICKETS_URL" not in sql for sql, _ in calls)
+        tickets = incidents.list_tickets()
+        ticket = incidents.get_ticket(12)
+    assert tickets[0]["display_id"] == "NX-DB-000012"
+    assert ticket["alerts"][0]["alert_id"] == "a-12"
+    assert calls[0][1] == "GET" and calls[0][2] == {}
+    assert calls[1][2]["params"] == {"ticket_db_id": 12}
+
+
+def test_ticket_api_uses_configured_header_auth_without_logging_value(app, monkeypatch):
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self, _limit): return b'{"tickets":[]}'
+
+    seen = []
+    def fake_urlopen(request, timeout):
+        seen.append((request, timeout))
+        return Response()
+
+    monkeypatch.setattr(incidents, "urlopen", fake_urlopen)
+    app.config.update({
+        "N8N_TICKETS_URL": "http://192.168.3.15:5678/webhook/nexus-tickets",
+        "N8N_TICKET_AUTH_HEADER": "x-webhook-token",
+        "N8N_TICKET_AUTH_VALUE": "unit-test-secret",
+        "N8N_TICKET_API_TIMEOUT": 5,
+    })
+    with app.app_context():
+        status, body = incidents._ticket_api_request(app.config["N8N_TICKETS_URL"])
+    assert status == 200 and body == {"tickets": []}
+    assert seen[0][0].get_header("X-webhook-token") == "unit-test-secret"
+    assert seen[0][1] == 5
+
+
+def test_latest_assessment_uses_external_ticket_id_correlation(app, monkeypatch):
+    monkeypatch.setattr(incidents.db, "query_all", lambda _query, _params: [{
+        "assessment_id": "assessment-1", "status": "NO_ACTION", "verdict": "BENIGN",
+        "threat_score": 10, "confidence": 0.9, "recommended_actions": '["notify_only"]',
+        "event_summary": '{"ticket_ids":["NX-DB-000012"]}', "response_result": '{"reason":"dry_run"}',
+    }])
+    tickets = [{"id": 12, "display_id": "NX-DB-000012"}]
+    incidents.latest_assessments_for_tickets(tickets)
+    assert tickets[0]["latest_assessment"]["assessment_id"] == "assessment-1"
+    assert tickets[0]["latest_assessment"]["response_result"]["reason"] == "dry_run"
 
 
 def test_incident_detail_shows_local_alerts_responses_and_assessment(aapp, root, monkeypatch):
@@ -203,28 +252,23 @@ def test_incident_close_requires_csrf_and_closes_local_ticket(aapp, root, monkey
     assert calls[0][:3] == (12, "resolved", "확인 완료")
 
 
-def test_close_ticket_updates_local_status_and_is_idempotent(app, monkeypatch):
-    state = {"status": "open", "updates": 0}
+def test_close_ticket_uses_existing_action_api_and_is_idempotent(app, monkeypatch):
+    calls = []
 
-    def query_one(sql, params=(), **_kwargs):
-        if "FROM security_incident_tickets" in sql:
-            return {"id": 12, "status": state["status"], "responses": "[]"}
-        return None
+    def action_request(url, method="GET", **kwargs):
+        calls.append((url, method, kwargs))
+        return (200, {"status": "ok"}) if len(calls) == 1 else (409, {"status": "already_closed"})
 
-    def execute_rowcount(sql, params=(), **_kwargs):
-        assert "UPDATE security_incident_tickets" in sql
-        state["updates"] += 1
-        state["status"] = "closed"
-        return 1
-
-    monkeypatch.setattr(incidents.db, "query_one", query_one)
-    monkeypatch.setattr(incidents.db, "execute_rowcount", execute_rowcount)
+    monkeypatch.setattr(incidents, "_ticket_api_request", action_request)
     with app.app_context():
         first = incidents.close_ticket(12, "false_positive", "오탐 확인", "analyst")
         second = incidents.close_ticket(12, "false_positive", "오탐 확인", "analyst")
     assert first["status"] == "closed"
     assert second["status"] == "already_closed"
-    assert state["updates"] == 1
+    assert len(calls) == 2
+    assert calls[0][1] == "POST"
+    assert calls[0][2]["payload"]["ticket_id"] == "NX-DB-000012"
+    assert calls[0][2]["payload"]["action"] == "false_positive"
 
 
 def test_assessment_lookup_matches_external_ticket_id(aapp, monkeypatch):
