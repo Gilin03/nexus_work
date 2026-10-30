@@ -23,16 +23,31 @@ def display_ticket_id(ticket_db_id):
 
 def _api_config(action=False):
     config = current_app.config
-    url = config.get("N8N_TICKET_ACTION_URL" if action else "N8N_TICKETS_URL", "").strip()
+    url_key = "N8N_TICKET_ACTION_URL" if action else "N8N_TICKETS_URL"
+    url = config.get(url_key, "").strip()
     header = config.get("N8N_TICKET_AUTH_HEADER", "").strip()
     value = config.get("N8N_TICKET_AUTH_VALUE", "").strip()
+    missing = [name for name, item in (
+        (url_key, url), ("N8N_TICKET_AUTH_HEADER", header), ("N8N_TICKET_AUTH_VALUE", value)
+    ) if not item]
+    invalid = []
     try:
         parsed = urlsplit(url)
     except ValueError:
+        parsed = None
+        invalid.append("url")
+    if parsed and (parsed.scheme not in {"http", "https"} or not parsed.netloc):
+        invalid.append("url")
+    if header and not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", header):
+        invalid.append("auth_header")
+    if missing or invalid:
+        current_app.logger.warning(
+            "incident_ticket_api_config_error target=%s missing=%s invalid=%s",
+            "ticket_action" if action else "tickets",
+            ",".join(missing) or "none",
+            ",".join(invalid) or "none",
+        )
         raise TicketApiError() from None
-    if (parsed.scheme not in {"http", "https"} or not parsed.netloc or
-            not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", header) or not value):
-        raise TicketApiError()
     return url, header, value
 
 
@@ -44,16 +59,26 @@ def _request(method, url, body=None):
         data = json.dumps(body, ensure_ascii=False).encode("utf-8")
         headers["Content-Type"] = "application/json"
     request = Request(url, data=data, headers=headers, method=method)
+    target = "ticket_action" if method == "POST" else "tickets"
     try:
         with urlopen(request, timeout=8) as response:
             payload = response.read(4 * 1024 * 1024 + 1)
             if len(payload) > 4 * 1024 * 1024:
+                current_app.logger.warning(
+                    "incident_ticket_api_response_error target=%s method=%s reason=response_too_large", target, method
+                )
                 raise TicketApiError("ticket_api_response_too_large")
             result = json.loads(payload.decode("utf-8")) if payload else {}
             if not isinstance(result, dict):
+                current_app.logger.warning(
+                    "incident_ticket_api_response_error target=%s method=%s reason=invalid_json_shape", target, method
+                )
                 raise TicketApiError("ticket_api_invalid_response")
             return result
     except HTTPError as exc:
+        current_app.logger.warning(
+            "incident_ticket_api_http_error target=%s method=%s status=%s", target, method, exc.code
+        )
         try:
             result = json.loads(exc.read(65536).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -61,8 +86,41 @@ def _request(method, url, body=None):
         if method == "POST" and exc.code == 409 and result.get("status") == "already_closed":
             return result
         raise TicketApiError("ticket_api_rejected", exc.code) from None
-    except (URLError, TimeoutError, OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except URLError as exc:
+        reason = exc.reason
+        if isinstance(reason, OSError):
+            detail = reason.strerror or type(reason).__name__
+            error_type = type(reason).__name__
+            if reason.errno is not None:
+                detail = f"errno={reason.errno} {detail}"
+        else:
+            detail = str(reason)
+            error_type = type(reason).__name__
+        detail = re.sub(r"[\r\n]+", " ", detail)[:180]
+        current_app.logger.warning(
+            "incident_ticket_api_transport_error target=%s method=%s exception=%s detail=%s",
+            target, method, error_type, detail or "unavailable",
+        )
         raise TicketApiError("ticket_api_unavailable") from None
+    except (TimeoutError, OSError) as exc:
+        detail = getattr(exc, "strerror", None)
+        if not detail and isinstance(exc, TimeoutError):
+            detail = str(exc) or "timed out"
+        detail = detail or type(exc).__name__
+        errno = getattr(exc, "errno", None)
+        if errno is not None:
+            detail = f"errno={errno} {detail}"
+        detail = re.sub(r"[\r\n]+", " ", detail)[:180]
+        current_app.logger.warning(
+            "incident_ticket_api_transport_error target=%s method=%s exception=%s detail=%s",
+            target, method, type(exc).__name__, detail,
+        )
+        raise TicketApiError("ticket_api_unavailable") from None
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        current_app.logger.warning(
+            "incident_ticket_api_response_error target=%s method=%s exception=%s", target, method, type(exc).__name__
+        )
+        raise TicketApiError("ticket_api_invalid_response") from None
 
 
 def _with_query(url, params):
