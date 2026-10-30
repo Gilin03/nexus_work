@@ -17,7 +17,10 @@ EVENT_FIELDS = {
     "path", "resource", "required", "count", "window_seconds", "failed_attempts",
     "lock_request_id", "trigger_event_type",
 }
-RESPONSE_FIELDS = {"action", "created_at", "at", "actor", "by", "status", "reason", "assessment_id", "rule_id", "result"}
+RESPONSE_FIELDS = {
+    "action", "created_at", "at", "actor", "by", "status", "reason", "assessment_id", "rule_id", "result",
+    "response_id", "step", "mode", "src_ip", "ticket_id", "policy_reason", "executed_at", "minutes",
+}
 
 
 def display_ticket_id(ticket_db_id):
@@ -355,6 +358,41 @@ def close_ticket(ticket_db_id, resolution, note, actor):
             return {"status": "already_closed"}
         raise RuntimeError("incident_close_conflict")
     return {"status": "closed", "ticket_db_id": int(ticket_db_id)}
+
+
+def record_auto_block_result(ticket_ids, response):
+    """Append a minimized AI-XDR auto-block result to locally mirrored Incident responses."""
+    if not isinstance(ticket_ids, list) or not isinstance(response, dict):
+        return 0
+    external_ids = list(dict.fromkeys(
+        str(ticket_id).strip().upper() for ticket_id in ticket_ids
+        if isinstance(ticket_id, str) and TICKET_ID_RE.fullmatch(ticket_id.strip())
+    ))[:50]
+    safe_response = _safe_responses([response])
+    if not external_ids or not safe_response or not safe_response[0].get("response_id"):
+        return 0
+
+    placeholders = ",".join(["%s"] * len(external_ids))
+    rows = db.query_all(
+        "SELECT DISTINCT t.id FROM security_incident_tickets t "
+        "JOIN security_incident_alerts a ON a.ticket_id=t.id "
+        "WHERE JSON_UNQUOTE(JSON_EXTRACT(a.event_payload,'$.ticket_id')) IN (" + placeholders + ")",
+        tuple(external_ids),
+    )
+    response_json = json.dumps(safe_response[0], ensure_ascii=False, separators=(",", ":"))
+    response_id = safe_response[0]["response_id"]
+    updated = 0
+    for row in rows:
+        updated += db.execute_rowcount(
+            "UPDATE security_incident_tickets SET responses=IF("
+            "JSON_SEARCH(COALESCE(responses,JSON_ARRAY()),'one',%s,NULL,'$[*].response_id') IS NOT NULL,"
+            "COALESCE(responses,JSON_ARRAY()),"
+            "JSON_ARRAY_APPEND(IF(JSON_LENGTH(COALESCE(responses,JSON_ARRAY()))>=30,"
+            "JSON_REMOVE(COALESCE(responses,JSON_ARRAY()),'$[0]'),COALESCE(responses,JSON_ARRAY())),'$',CAST(%s AS JSON))) "
+            "WHERE id=%s",
+            (response_id, response_json, int(row["id"])),
+        )
+    return updated
 
 
 def assessments_for_ticket(ticket_id, ticket_db_id):

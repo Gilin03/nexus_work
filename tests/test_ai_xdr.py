@@ -511,6 +511,9 @@ def test_list_assessments_returns_external_ticket_ids_without_local_fk(app, monk
         # VULN-FINDINGS.md 2026-10-29 MEDIUM #2 회귀 테스트: 자동 차단 경로도 사람 승인 경로와
         # 동일하게 XDR_IP_BLOCK_ENABLED 킬스위치를 반드시 확인해야 한다.
         (["R8"], "192.168.7.77", {"XDR_IP_BLOCK_ENABLED": False}, False),
+        (["R8"], "::ffff:192.168.3.10", {}, False),
+        (["R8"], "0.0.0.0", {}, False),
+        (["R8"], "224.0.0.1", {}, False),
     ],
 )
 def test_policy_fails_closed_for_rule_whitelist_ip_and_unset_or_dry_run(rule_ids, src_ip, extra, expected):
@@ -567,7 +570,7 @@ def test_model_timeout_and_malformed_response_fail_closed(monkeypatch):
 
 @pytest.mark.parametrize("rule_id", [f"R{i}" for i in range(1, 13)])
 def test_window_processor_reuses_block_ip_only_for_allowed_rules(app, monkeypatch, rule_id, events):
-    from app import db, security
+    from app import db, incidents, security
 
     now = datetime(2026, 10, 26, 11, 30, tzinfo=timezone.utc)
     window_key = "a" * 64
@@ -581,9 +584,13 @@ def test_window_processor_reuses_block_ip_only_for_allowed_rules(app, monkeypatc
     writes = []
     blocked = []
     monkeypatch.setattr(db, "query_all", lambda *_args, **_kwargs: next(queries))
-    monkeypatch.setattr(db, "query_one", lambda _sql, params=(), **_kwargs: {"id": params[0]})
+    monkeypatch.setattr(
+        db, "query_one",
+        lambda sql, params=(), **_kwargs: None if "blocked_ips" in sql else {"id": params[0]},
+    )
     monkeypatch.setattr(db, "execute_rowcount", lambda sql, params=(): writes.append((sql, params)) or 1)
     monkeypatch.setattr(security, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(incidents, "record_auto_block_result", lambda *_args, **_kwargs: 1)
     monkeypatch.setattr(security, "block_ip", lambda *args, **kwargs: blocked.append((args, kwargs)) or True)
     monkeypatch.setattr(ai_xdr, "triage", lambda *_args: {
         "assessment_id": "ignored", "threat_score": 95, "confidence": 0.99,
@@ -633,6 +640,157 @@ def test_window_processor_reuses_block_ip_only_for_allowed_rules(app, monkeypatc
     assert assessment["policy_reason"] == expected_reason
     assert assessment["policy_reason_detail"] == expected_reason.lower()
     assert not {"src_ip", "user_names", "reasoning"} & assessment.keys()
+
+
+def test_night_auto_block_reuses_portal_blocker_and_records_incident_result(app, monkeypatch):
+    from app import db, incidents, security
+
+    now = datetime(2026, 10, 26, 13, 30, tzinfo=timezone.utc)  # 22:30 KST
+    window_key = "c" * 64
+    rows = [{
+        "alert_id": "night-auto-r8", "window_key": window_key, "group_key": "ip:203.0.113.55",
+        "incident_ticket_id": None, "rule_id": "R8", "event_type": "not_found", "src_ip": "203.0.113.55",
+        "user_name": "synthetic", "severity": "high", "event_count": 35, "occurred_at": now,
+        "event_payload": '{"_ticket_id":"NX-DB-000086"}',
+    }]
+    reads = iter(([{"window_key": window_key, "window_start": now}], rows))
+    writes, blocks, incident_records = [], [], []
+
+    monkeypatch.setattr(db, "query_all", lambda *_args, **_kwargs: next(reads))
+    monkeypatch.setattr(db, "query_one", lambda sql, params=(), **_kwargs: None if "blocked_ips" in sql else None)
+    monkeypatch.setattr(db, "execute_rowcount", lambda sql, params=(): writes.append((sql, params)) or 1)
+    monkeypatch.setattr(security, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(security, "log_xdr_process_debug", lambda **_kwargs: None)
+    monkeypatch.setattr(security, "block_ip", lambda *args, **kwargs: blocks.append((args, kwargs)) or True)
+    monkeypatch.setattr(incidents, "record_auto_block_result", lambda ids, result: incident_records.append((ids, result)) or 1)
+    monkeypatch.setattr(ai_xdr, "triage", lambda _summary, assessment_id: {
+        "assessment_id": assessment_id, "threat_score": 92, "confidence": 0.94,
+        "verdict": "MALICIOUS", "reasoning": "Synthetic metadata", "recommended_actions": ["block_ip"],
+    })
+    app.config.update({
+        "XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live", "XDR_IP_BLOCK_ENABLED": True,
+        "XDR_AUTO_MIN_SCORE": 80, "XDR_AUTO_MIN_CONFIDENCE": 0.80,
+        "XDR_MAX_EVENT_AGE_SECONDS": 300, "XDR_DAY_START_HOUR": 8, "XDR_DAY_END_HOUR": 20,
+        "XDR_WEEKEND_MODE": "approval",
+    })
+
+    with app.app_context():
+        result = ai_xdr.process_ready_windows(now=now)
+
+    assessment = result["assessments"][0]
+    assert result["processed"] == 1
+    assert len(blocks) == 1
+    assert blocks[0][0] == ("203.0.113.55",)
+    assert blocks[0][1]["minutes"] == 15
+    assert blocks[0][1]["created_by"] == "ai_xdr_auto"
+    assert assessment["status"] == "AUTO_EXECUTED"
+    assert assessment["auto_allowed"] is True
+    assessment_write = next(params for sql, params in writes if sql.startswith("UPDATE security_xdr_assessments SET"))
+    stored_result = json.loads(assessment_write[-2])
+    assert stored_result["action"] == "auto_block"
+    assert stored_result["reason"] == "block_succeeded"
+    assert stored_result["assessment_id"] == assessment["assessment_id"]
+    assert stored_result["src_ip"] == "203.0.113.55"
+    assert stored_result["policy_reason"] == "policy_passed"
+    assert stored_result["ticket_ids"] == ["NX-DB-000086"]
+    assert incident_records[0][0] == ["NX-DB-000086"]
+    assert incident_records[0][1]["response_id"] == f"auto_block:{assessment['assessment_id']}"
+
+
+def test_night_auto_block_skips_active_block_and_fails_closed_on_lookup_error(app, monkeypatch):
+    from app import db, security
+
+    now = datetime(2026, 10, 26, 13, 30, tzinfo=timezone.utc)
+    window_key = "d" * 64
+    rows = [{
+        "alert_id": "night-auto-r5", "window_key": window_key, "group_key": "ip:203.0.113.56",
+        "incident_ticket_id": None, "rule_id": "R5", "event_type": "login_failure", "src_ip": "203.0.113.56",
+        "user_name": "synthetic", "severity": "high", "event_count": 8, "occurred_at": now,
+        "event_payload": '{"_ticket_id":"NX-DB-000087"}',
+    }]
+    blocked = {"value": True}
+    reads = iter(([{"window_key": window_key, "window_start": now}], rows))
+    writes, block_calls = [], []
+
+    monkeypatch.setattr(db, "query_all", lambda *_args, **_kwargs: next(reads))
+    def query_one(sql, params=(), **_kwargs):
+        if "blocked_ips" in sql:
+            if blocked["value"] == "error":
+                raise RuntimeError("database unavailable")
+            return {"active": 1} if blocked["value"] else None
+        return None
+    monkeypatch.setattr(db, "query_one", query_one)
+    monkeypatch.setattr(db, "execute_rowcount", lambda sql, params=(): writes.append((sql, params)) or 1)
+    monkeypatch.setattr(security, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(security, "log_xdr_process_debug", lambda **_kwargs: None)
+    monkeypatch.setattr(security, "block_ip", lambda *args, **kwargs: block_calls.append((args, kwargs)) or True)
+    monkeypatch.setattr(ai_xdr, "triage", lambda _summary, assessment_id: {
+        "assessment_id": assessment_id, "threat_score": 90, "confidence": 0.90,
+        "verdict": "MALICIOUS", "reasoning": "Synthetic metadata", "recommended_actions": ["block_ip"],
+    })
+    app.config.update({
+        "XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live", "XDR_IP_BLOCK_ENABLED": True,
+        "XDR_AUTO_MIN_SCORE": 80, "XDR_AUTO_MIN_CONFIDENCE": 0.80,
+        "XDR_MAX_EVENT_AGE_SECONDS": 300, "XDR_DAY_START_HOUR": 8, "XDR_DAY_END_HOUR": 20,
+        "XDR_WEEKEND_MODE": "approval",
+    })
+
+    with app.app_context():
+        result = ai_xdr.process_ready_windows(now=now)
+    assessment = result["assessments"][0]
+    assert block_calls == []
+    assert assessment["auto_allowed"] is False
+    assert assessment["policy_reason_detail"] == "already_blocked_ip"
+    assert assessment["status"] == "NO_ACTION"
+
+    # A failed active-block lookup must also suppress execution.
+    blocked["value"] = "error"
+    reads = iter(([{"window_key": window_key + "1", "window_start": now}], [dict(rows[0], alert_id="night-auto-r5-retry", window_key=window_key + "1")]))
+    with app.app_context():
+        result = ai_xdr.process_ready_windows(now=now)
+    assessment = result["assessments"][0]
+    assert block_calls == []
+    assert assessment["auto_allowed"] is False
+    assert assessment["policy_reason_detail"] == "block_state_unavailable"
+
+
+def test_policy_evaluation_error_keeps_auto_block_closed(app, monkeypatch):
+    from app import db, security
+
+    now = datetime(2026, 10, 26, 13, 30, tzinfo=timezone.utc)
+    window_key = "f" * 64
+    rows = [{
+        "alert_id": "night-policy-error-r8", "window_key": window_key, "group_key": "ip:203.0.113.57",
+        "incident_ticket_id": None, "rule_id": "R8", "event_type": "not_found", "src_ip": "203.0.113.57",
+        "user_name": "synthetic", "severity": "high", "event_count": 35, "occurred_at": now,
+        "event_payload": "{}",
+    }]
+    reads = iter(([{"window_key": window_key, "window_start": now}], rows))
+    writes, block_calls = [], []
+    monkeypatch.setattr(db, "query_all", lambda *_args, **_kwargs: next(reads))
+    monkeypatch.setattr(db, "query_one", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(db, "execute_rowcount", lambda sql, params=(): writes.append((sql, params)) or 1)
+    monkeypatch.setattr(security, "log_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(security, "log_xdr_process_debug", lambda **_kwargs: None)
+    monkeypatch.setattr(security, "block_ip", lambda *args, **kwargs: block_calls.append((args, kwargs)))
+    monkeypatch.setattr(ai_xdr, "triage", lambda _summary, assessment_id: {
+        "assessment_id": assessment_id, "threat_score": 99, "confidence": 0.99,
+        "verdict": "MALICIOUS", "reasoning": "Synthetic metadata", "recommended_actions": ["block_ip"],
+    })
+    def raise_policy_error(*_args, **_kwargs):
+        raise RuntimeError("policy error")
+    monkeypatch.setattr(ai_xdr, "evaluate_policy", raise_policy_error)
+    app.config.update({"XDR_AUTO_ENABLED": True, "XDR_RESPONSE_MODE": "live", "XDR_IP_BLOCK_ENABLED": True})
+
+    with app.app_context():
+        result = ai_xdr.process_ready_windows(now=now)
+
+    assessment = result["assessments"][0]
+    assert result["processed"] == 1
+    assert block_calls == []
+    assert assessment["auto_allowed"] is False
+    assert assessment["approval_allowed"] is False
+    assert assessment["policy_reason_detail"] == "policy_evaluation_error"
 
 
 @pytest.mark.parametrize(
