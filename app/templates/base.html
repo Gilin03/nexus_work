@@ -44,6 +44,7 @@
     ('사용자 관리', url_for('admin.users'), ep in ('admin.users', 'admin.user_new', 'admin.change_role', 'admin.unlock', 'admin.lock', 'admin.reset_password'), g.user.role == 'admin'),
     ('보안 대시보드', url_for('admin.audit_log'), ep.startswith('admin.audit'), can('security.dashboard')),
     ('AI-XDR 판정', url_for('admin.xdr_assessments'), ep.startswith('admin.xdr'), can('security.dashboard')),
+    ('보안 인시던트', url_for('admin.incidents_list'), ep.startswith('admin.incident'), can('security.dashboard')),
     ('차단 IP 관리', url_for('admin.list_blocked_ips'), ep.startswith('admin.list_blocked_ips'), can('security.dashboard')),
     ('권한 현황', url_for('admin.permissions'), ep == 'admin.permissions', g.user.role == 'admin')]),
 ] %}
@@ -54,7 +55,7 @@
   ('work.reservation', '업무', '예약'), ('work.resource', '업무', '예약'), ('work.project', '업무', '프로젝트'),
   ('library.library_home', '자료', '자료실'), ('library.folder', '자료', '자료실'), ('library.file', '자료', '자료실'),
   ('library.search', '자료', '문서 검색'), ('library.form', '자료', '양식 모음'), ('library.contact', '자료', '주소록'),
-  ('erp.finance', '업무', '재무 보고'), ('portal.documents', '자료', '문서함'), ('portal.document', '자료', '문서함'),
+  ('erp.finance', '업무', '재무 보고'), ('admin.incident', '관리', '보안 인시던트'), ('portal.documents', '자료', '문서함'), ('portal.document', '자료', '문서함'),
   ('portal.confidential', '자료', '기밀 문서함'), ('portal.employees', '자료', '주소록'),
   ('portal.board', '자료', '게시판'), ('portal.post', '자료', '게시판'), ('portal.attachment', '자료', '게시판'),
   ('hr.card', '인사', '인사카드'), ('hr.org', '인사', '조직도'), ('hr.attendance', '인사', '근태관리'),

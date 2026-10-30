@@ -27,7 +27,7 @@ from datetime import datetime, timedelta
 import pymysql
 from flask import Blueprint, Response, abort, current_app, g, jsonify, redirect, render_template, request, url_for
 
-from . import audit, db, security, validators
+from . import audit, db, incidents, security, validators
 from .approvals import conflict, forbidden
 from .auth import hash_password
 from .hr import today_kst
@@ -731,3 +731,65 @@ def decide_xdr_assessment(assessment_id):
         log_event("xdr_assessment_decision", "ERROR", type(exc).__name__, assessment_id=assessment_id)
         abort(503)
     return redirect(url_for("admin.xdr_assessments", result=result["status"].lower()), 303)
+
+
+@bp.get("/incidents")
+@permission_required("security.dashboard")
+def incidents_list():
+    try:
+        rows = incidents.list_tickets()
+    except incidents.TicketApiError:
+        return render_template("admin_incidents.html", incidents=[], unavailable=True)
+    for row in rows:
+        row["display_id"] = incidents.display_ticket_id(row["id"])
+    return render_template("admin_incidents.html", incidents=rows, unavailable=False)
+
+
+@bp.get("/incidents/<int:ticket_db_id>")
+@permission_required("security.dashboard")
+def incident_detail(ticket_db_id):
+    try:
+        ticket = incidents.get_ticket(ticket_db_id)
+    except incidents.TicketApiError:
+        abort(503)
+    if ticket is None:
+        abort(404)
+    ticket["display_id"] = incidents.display_ticket_id(ticket_db_id)
+    assessments = []
+    xdr_unavailable = False
+    if current_app.config.get("XDR_ENABLED"):
+        try:
+            assessments = incidents.assessments_for_ticket(ticket["display_id"], ticket_db_id)
+        except pymysql.MySQLError:
+            xdr_unavailable = True
+    return render_template(
+        "admin_incident_detail.html", incident=ticket, assessments=assessments,
+        xdr_unavailable=xdr_unavailable, result=request.args.get("result", ""),
+    )
+
+
+@bp.post("/incidents/<int:ticket_db_id>/close")
+@permission_required("security.dashboard")
+def incident_close(ticket_db_id):
+    resolution = request.form.get("resolution", "")
+    note = request.form.get("note", "").strip()
+    if resolution not in {"resolved", "false_positive", "other"} or len(note) > 500:
+        abort(400)
+    try:
+        result = incidents.close_ticket(
+            ticket_db_id, resolution, note, g.user.get("username", "admin"),
+        )
+    except incidents.TicketApiError as exc:
+        if exc.status_code == 404:
+            abort(404)
+        if exc.status_code == 409:
+            abort(409)
+        log_event("incident_close", "ERROR", exc.code, ticket_id=incidents.display_ticket_id(ticket_db_id))
+        abort(503)
+    already_closed = result.get("status") == "already_closed"
+    log_event(
+        "incident_close", "INFO", "already_closed" if already_closed else "closed",
+        ticket_id=incidents.display_ticket_id(ticket_db_id), resolution=resolution,
+    )
+    return redirect(url_for("admin.incident_detail", ticket_db_id=ticket_db_id,
+                            result="already_closed" if already_closed else "closed"), 303)
