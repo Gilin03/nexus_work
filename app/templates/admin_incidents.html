@@ -3,14 +3,15 @@
 {% block content %}
 <section class="sheet">
   <h1>보안 인시던트</h1>
-  <p class="hint">탐지 사건과 대응 이력을 조회하고 종결합니다. AI 분석과 차단 승인은 AI-XDR 화면에서 관리합니다.</p>
+  <p class="hint">기존 Ticket과 탐지·대응 이력을 조회하고 종결합니다. AI 분석과 차단 대응은 AI-XDR 화면에서 관리합니다.</p>
   <p><a class="btn" href="{{ url_for('admin.xdr_assessments') }}">AI-XDR 판정 보기</a></p>
   {% if unavailable %}
-    <p class="alert" role="alert">로컬 Incident 저장소를 읽을 수 없습니다. 서버 로그를 확인하세요.</p>
+    <p class="alert" role="alert">Ticket 정보를 불러오지 못했습니다. 서버 로그에서 Ticket API 연결 상태를 확인하세요.</p>
   {% elif incidents %}
+  {% if xdr_unavailable %}<p class="hint">AI-XDR 요약을 불러오지 못했습니다. Ticket 목록은 표시합니다.</p>{% endif %}
   <div class="scroll">
     <table class="audit">
-      <thead><tr><th>Ticket</th><th>상태</th><th>출발지 IP</th><th>Rule</th><th>이벤트</th><th>최초 시각</th><th>최근 시각</th></tr></thead>
+      <thead><tr><th>Ticket</th><th>상태</th><th>출발지 IP</th><th>Rule</th><th>이벤트</th><th>최근 AI 판정</th><th>최초 시각</th><th>최근 시각</th></tr></thead>
       <tbody>
       {% for incident in incidents %}
         <tr>
@@ -19,6 +20,7 @@
           <td class="mono">{{ incident.src_ip or 'IP 없음' }}</td>
           <td>{{ incident.rule_ids | join(', ') or '—' }}</td>
           <td>{{ incident.event_count or 0 }}</td>
+          <td>{% if incident.latest_assessment %}{{ incident.latest_assessment.verdict }} · {{ incident.latest_assessment.threat_score }}/100{% else %}—{% endif %}</td>
           <td>{{ incident.first_seen or '—' }}</td>
           <td>{{ incident.last_seen or '—' }}</td>
         </tr>

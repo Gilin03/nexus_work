@@ -29,11 +29,14 @@
   {% if xdr_unavailable %}<p class="alert" role="alert">AI-XDR 분석 저장소를 읽을 수 없습니다.</p>
   {% elif assessments %}
   <div class="scroll"><table class="audit">
-    <thead><tr><th>시각</th><th>Assessment</th><th>Verdict</th><th>점수 / 신뢰도</th><th>권고</th><th>상태</th><th></th></tr></thead>
+    <thead><tr><th>시각</th><th>Assessment</th><th>Verdict</th><th>점수 / 신뢰도</th><th>권고</th><th>정책 / 응답</th><th>상태</th><th></th></tr></thead>
     <tbody>{% for assessment in assessments %}<tr>
       <td>{{ assessment.created_at or '—' }}</td><td class="mono">{{ assessment.assessment_id }}</td><td>{{ assessment.verdict }}</td>
       <td>{{ assessment.threat_score }}/100 · {{ '%.0f'|format((assessment.confidence or 0) * 100) }}%</td>
-      <td>{{ assessment.recommended_actions | join(', ') or '—' }}</td><td>{{ assessment.status }}</td>
+      <td>{{ assessment.recommended_actions | join(', ') or '—' }}</td>
+      {% set response_result = assessment.get('response_result') or {} %}
+      <td>{{ assessment.policy_reason or '—' }}{% if response_result.get('reason') %}<br>응답: {{ response_result.get('reason') }}{% endif %}</td>
+      <td>{{ assessment.status }}</td>
       <td><a href="{{ url_for('admin.xdr_assessments') }}">AI-XDR에서 보기</a></td>
     </tr>{% endfor %}</tbody>
   </table></div>

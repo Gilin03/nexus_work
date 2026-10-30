@@ -738,12 +738,19 @@ def decide_xdr_assessment(assessment_id):
 def incidents_list():
     try:
         rows = incidents.list_tickets()
-    except pymysql.MySQLError as exc:
-        log_event("incident_list", "ERROR", type(exc).__name__)
-        return render_template("admin_incidents.html", incidents=[], unavailable=True)
+    except incidents.TicketApiError as exc:
+        log_event("incident_list", "ERROR", exc.reason, http_status=exc.status_code)
+        return render_template("admin_incidents.html", incidents=[], unavailable=True, xdr_unavailable=False)
     for row in rows:
         row["display_id"] = row.get("display_id") or incidents.display_ticket_id(row["id"])
-    return render_template("admin_incidents.html", incidents=rows, unavailable=False)
+    xdr_unavailable = False
+    if current_app.config.get("XDR_ENABLED"):
+        try:
+            incidents.latest_assessments_for_tickets(rows)
+        except pymysql.MySQLError as exc:
+            log_event("incident_xdr_summary", "ERROR", type(exc).__name__)
+            xdr_unavailable = True
+    return render_template("admin_incidents.html", incidents=rows, unavailable=False, xdr_unavailable=xdr_unavailable)
 
 
 @bp.get("/incidents/<int:ticket_db_id>")
@@ -751,8 +758,9 @@ def incidents_list():
 def incident_detail(ticket_db_id):
     try:
         ticket = incidents.get_ticket(ticket_db_id)
-    except pymysql.MySQLError as exc:
-        log_event("incident_detail", "ERROR", type(exc).__name__, ticket_db_id=ticket_db_id)
+    except incidents.TicketApiError as exc:
+        log_event("incident_detail", "ERROR", exc.reason, http_status=exc.status_code,
+                  ticket_id=incidents.display_ticket_id(ticket_db_id))
         abort(503)
     if ticket is None:
         abort(404)
@@ -784,8 +792,11 @@ def incident_close(ticket_db_id):
     except LookupError:
         abort(404)
     except (RuntimeError, pymysql.MySQLError) as exc:
-        log_event("incident_close", "ERROR", type(exc).__name__, ticket_id=incidents.display_ticket_id(ticket_db_id))
-        abort(409 if isinstance(exc, RuntimeError) else 503)
+        reason = exc.reason if isinstance(exc, incidents.TicketApiError) else type(exc).__name__
+        status_code = exc.status_code if isinstance(exc, incidents.TicketApiError) else None
+        log_event("incident_close", "ERROR", reason, http_status=status_code,
+                  ticket_id=incidents.display_ticket_id(ticket_db_id))
+        abort(409 if isinstance(exc, RuntimeError) and not isinstance(exc, incidents.TicketApiError) else 503)
     already_closed = result.get("status") == "already_closed"
     log_event(
         "incident_close", "INFO", "already_closed" if already_closed else "closed",
