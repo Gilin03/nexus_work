@@ -13,6 +13,18 @@
       <a href="{{ url_for('admin.xdr_assessments') }}" class="soc-btn soc-btn-outline">
         🛡️ AI-XDR 2차 판정
       </a>
+      <form method="post" action="{{ url_for('admin.toggle_security_mode') }}" style="display:inline; margin:0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if security_mode %}
+        <button type="submit" class="soc-btn" style="background:#059669; border:1px solid #10b981; color:#ffffff; cursor:pointer;" title="클릭 시 취약 모드로 전환 (시연용)">
+          🟢 방어 모드 ACTIVE
+        </button>
+        {% else %}
+        <button type="submit" class="soc-btn" style="background:#dc2626; border:1px solid #ef4444; color:#ffffff; cursor:pointer; animation: pulse 2s infinite;" title="클릭 시 방어 모드로 복원">
+          🔴 취약 모드 INACTIVE
+        </button>
+        {% endif %}
+      </form>
       <a href="{{ url_for('admin.list_blocked_ips') }}" class="soc-btn soc-btn-danger">
         차단 IP 관리 ({{ blocked_ips_count }}건 활성)
       </a>

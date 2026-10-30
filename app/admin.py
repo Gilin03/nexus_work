@@ -498,7 +498,7 @@ def _dashboard_page(f, period, limit, page, error=None, status=200):
         top_kinds=res["kinds"].most_common(10), top_ips=res["bad_ips"].most_common(10), top_fail_users=res["fail_users"].most_common(10),
         top_suspicious=res["suspicious"].most_common(8), locked=_locked_accounts(), events=shown, matched_n=res["matched_n"],
         capped=res["matched_n"] > audit.MAX_MATCH, has_prev=page > 1, has_next=start + limit < len(res["matched"]), covered=covered,
-        truncated=truncated, hourly=res["hourly"], blocked_ips_count=blocked_ips_count, threat_level=threat_level, soc_pipeline=soc_pipeline), status
+        truncated=truncated, hourly=res["hourly"], blocked_ips_count=blocked_ips_count, threat_level=threat_level, soc_pipeline=soc_pipeline, security_mode=current_app.config.get("SECURITY_MODE", True)), status
 
 
 @bp.get("/audit")
@@ -793,3 +793,45 @@ def incident_close(ticket_db_id):
     )
     return redirect(url_for("admin.incident_detail", ticket_db_id=ticket_db_id,
                             result="already_closed" if already_closed else "closed"), 303)
+
+
+@bp.post("/audit/toggle-security")
+@permission_required("security.dashboard")
+def toggle_security_mode():
+    current_mode = current_app.config.get("SECURITY_MODE", True)
+    new_mode = not current_mode
+    current_app.config["SECURITY_MODE"] = new_mode
+    current_app.config["LOGIN_MAX_FAILURES"] = 5 if new_mode else 999999
+    current_app.config["LOGIN_IP_LIMIT"] = 20 if new_mode else 999999
+    import os
+    os.environ["SECURITY_MODE"] = "on" if new_mode else "off"
+    os.environ["DEFENSE_MODE"] = "on" if new_mode else "off"
+
+    # .env 파일에도 보존
+    try:
+        from pathlib import Path
+        env_file = Path(current_app.root_path).parent / ".env"
+        if env_file.exists():
+            lines = env_file.read_text(encoding="utf-8").splitlines()
+            new_lines = []
+            sec_found, def_found = False, False
+            val = "on" if new_mode else "off"
+            for line in lines:
+                if line.startswith("SECURITY_MODE="):
+                    new_lines.append(f"SECURITY_MODE={val}")
+                    sec_found = True
+                elif line.startswith("DEFENSE_MODE="):
+                    new_lines.append(f"DEFENSE_MODE={val}")
+                    def_found = True
+                else:
+                    new_lines.append(line)
+            if not sec_found:
+                new_lines.append(f"SECURITY_MODE={val}")
+            if not def_found:
+                new_lines.append(f"DEFENSE_MODE={val}")
+            env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+    log_event("admin_action", "ALLOW", "toggle_security", mode="on" if new_mode else "off")
+    return redirect(url_for("admin.audit_log"), 303)

@@ -47,7 +47,7 @@ def test_every_admin_route_requires_admin(aapp, root):
         "/admin/blocked-ips", "/admin/blocked-ips/<path:ip>/unblock", "/admin/audit/stream",
         "/admin/xdr", "/admin/xdr/feed", "/admin/xdr/assessments/<assessment_id>/decision",
         "/admin/incidents", "/admin/incidents/<int:ticket_db_id>",
-        "/admin/incidents/<int:ticket_db_id>/close"}
+        "/admin/incidents/<int:ticket_db_id>/close", "/admin/audit/toggle-security"}
     before = snapshot(root)
     anon, emp, mgr = aapp.test_client(), as_user(aapp, "zz_emp"), as_user(aapp, "zz_mgr")
     for rule in rules:
@@ -248,3 +248,30 @@ def test_xdr_feed_returns_json(aapp, root):
     data = r.get_json()
     assert isinstance(data, dict)
     assert "assessments" in data
+
+
+def test_toggle_security_mode(aapp, root):
+    sql(root, "UPDATE users SET dept='보안관제팀' WHERE username='zz_adm'")
+    adm = as_user(aapp, "zz_adm")
+    # Initial state
+    assert aapp.config.get("SECURITY_MODE", True) is True
+    r = adm.get("/admin/audit")
+    assert r.status_code == 200
+    assert "방어 모드 ACTIVE" in r.get_data(as_text=True)
+
+    # Toggle to OFF (취약 모드)
+    r = post(adm, "/admin/audit/toggle-security")
+    assert r.status_code == 303
+    assert aapp.config.get("SECURITY_MODE") is False
+
+    r = adm.get("/admin/audit")
+    assert "취약 모드 INACTIVE" in r.get_data(as_text=True)
+
+    # Toggle back to ON (방어 모드)
+    r = post(adm, "/admin/audit/toggle-security")
+    assert r.status_code == 303
+    assert aapp.config.get("SECURITY_MODE") is True
+
+    r = adm.get("/admin/audit")
+    assert "방어 모드 ACTIVE" in r.get_data(as_text=True)
+

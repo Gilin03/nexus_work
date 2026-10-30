@@ -97,7 +97,8 @@ def chat_send():
         note = f"\n\n[첨부 파일: {attachment['name']}, {attachment['chars']:,}자{' (길어서 앞부분만)' if attachment['truncated'] else ''}]"
         log_event("chat_attachment", "INFO", "ok", ext=attachment["ext"], size=len(data), chars=attachment["chars"])
 
-    pattern_id = detect_direct_prompt_injection(message)
+    security_mode = current_app.config.get("SECURITY_MODE", True)
+    pattern_id = detect_direct_prompt_injection(message) if security_mode else None
     if pattern_id:
         log_event(
             "prompt_injection_detected",

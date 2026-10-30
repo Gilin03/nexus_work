@@ -50,9 +50,10 @@ class Config:
         self.TRUSTED_PROXIES = {ip.strip() for ip in trusted_raw.split(",") if ip.strip()}
 
         # 로그인 방어
-        self.LOGIN_MAX_FAILURES = 5
+        self.SECURITY_MODE = os.environ.get("SECURITY_MODE", "on").strip().lower() != "off"
+        self.LOGIN_MAX_FAILURES = 5 if self.SECURITY_MODE else 999999
         self.LOGIN_LOCK_MINUTES = 15
-        self.LOGIN_IP_LIMIT = 20  # 분당 POST /login 상한(IP)
+        self.LOGIN_IP_LIMIT = 20 if self.SECURITY_MODE else 999999  # 분당 POST /login 상한(IP)
 
         # 보안 대시보드 SSE 스트림(/admin/audit/stream): 계정당 동시 연결 수·접속 시도 속도·
         # 최대 유지시간을 제한해 공유 스레드풀(Waitress) 고갈을 막는다(VULN-FINDINGS.md 2026-10-29 MEDIUM #3).

@@ -82,6 +82,8 @@ _CACHE_TTL = 3.0  # 초 단위 캐시
 
 def is_ip_blocked(ip: str) -> tuple[bool, str]:
     """해당 IP가 차단되어 있는지 확인 (만료 시간 검사 및 3초 캐시 적용)."""
+    if os.environ.get("SECURITY_MODE", "on").strip().lower() == "off":
+        return False, ""
     if not ip or ip == "-" or is_protected_block_ip(ip):
         return False, ""
 
