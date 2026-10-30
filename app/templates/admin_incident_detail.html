@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ incident.display_id }} · 보안 인시던트{% endblock %}
+{% block content %}
+<section class="sheet">
+  <p><a href="{{ url_for('admin.incidents_list') }}">← 인시던트 목록</a></p>
+  <h1>{{ incident.display_id }}</h1>
+  {% if result == 'closed' %}<p class="notice" role="status">인시던트를 종결했습니다.</p>{% elif result == 'already_closed' %}<p class="notice" role="status">이미 종결된 인시던트입니다. 기존 기록을 유지했습니다.</p>{% endif %}
+
+  <h2>사건 정보</h2>
+  <div class="scroll"><table class="audit"><tbody>
+    <tr><th>상태</th><td>{{ incident.status }}</td><th>출발지 IP</th><td class="mono">{{ incident.src_ip or '—' }}</td></tr>
+    <tr><th>관련 계정</th><td>{{ incident.user_names | join(', ') or '—' }}</td><th>Rule</th><td>{{ incident.rule_ids | join(', ') or '—' }}</td></tr>
+    <tr><th>이벤트 수</th><td>{{ incident.event_count or 0 }}</td><th>최초 / 최근</th><td>{{ incident.first_seen or '—' }} / {{ incident.last_seen or '—' }}</td></tr>
+    {% if incident.resolution or incident.closed_at or incident.note %}<tr><th>종결 결과</th><td>{{ {'resolved':'조치 완료','false_positive':'오탐','other':'기타'}.get(incident.resolution, incident.resolution or '—') }}</td><th>종결 시각</th><td>{{ incident.closed_at or '—' }}</td></tr><tr><th>종결 메모</th><td colspan="3">{{ incident.note or '—' }}</td></tr>{% endif %}
+  </tbody></table></div>
+
+  <h2>탐지 이력</h2>
+  {% if incident.alerts %}
+  <div class="scroll"><table class="audit">
+    <thead><tr><th>발생 시각</th><th>Rule</th><th>이벤트</th><th>계정</th><th>출발지 IP</th><th>건수</th></tr></thead>
+    <tbody>{% for alert in incident.alerts %}<tr>
+      <td>{{ alert.occurred_at or alert.timestamp or '—' }}</td><td>{{ alert.rule_id or '—' }}</td><td>{{ alert.event_type or '—' }}</td>
+      <td>{{ alert.user or '—' }}</td><td class="mono">{{ alert.src_ip or '—' }}</td><td>{{ alert.event_count or 1 }}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="hint">Ticket API가 탐지 이력을 제공하지 않았습니다.</p>{% endif %}
+
+  <h2>AI-XDR 분석 요약</h2>
+  {% if xdr_unavailable %}<p class="alert" role="alert">AI-XDR 분석 저장소를 읽을 수 없습니다.</p>
+  {% elif assessments %}
+  <div class="scroll"><table class="audit">
+    <thead><tr><th>시각</th><th>Assessment</th><th>Verdict</th><th>점수 / 신뢰도</th><th>권고</th><th>상태</th><th></th></tr></thead>
+    <tbody>{% for assessment in assessments %}<tr>
+      <td>{{ assessment.created_at or '—' }}</td><td class="mono">{{ assessment.assessment_id }}</td><td>{{ assessment.verdict }}</td>
+      <td>{{ assessment.threat_score }}/100 · {{ '%.0f'|format((assessment.confidence or 0) * 100) }}%</td>
+      <td>{{ assessment.recommended_actions | join(', ') or '—' }}</td><td>{{ assessment.status }}</td>
+      <td><a href="{{ url_for('admin.xdr_assessments') }}">AI-XDR에서 보기</a></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="hint">연결된 AI-XDR 평가가 없습니다.</p>{% endif %}
+
+  <h2>대응 이력</h2>
+  {% if incident.responses %}
+  <ul>{% for item in incident.responses %}
+    <li>{{ item.time or item.created_at or item.timestamp or '시각 미기록' }} · {{ {'resolved':'조치 완료','false_positive':'오탐','other':'기타'}.get(item.resolution, item.action or item.type or item.status or '대응 기록') }}{% if item.actor %} · {{ item.actor }}{% endif %}{% if item.note %}<br>{{ item.note }}{% endif %}{% if item.result %}<br>{{ item.result }}{% endif %}</li>
+  {% endfor %}</ul>
+  {% else %}<p class="hint">대응 기록이 없습니다.</p>{% endif %}
+
+  {% if incident.status != 'closed' %}
+  <h2>인시던트 종결</h2>
+  <form method="post" action="{{ url_for('admin.incident_close', ticket_db_id=incident.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="resolution">처리 결과</label>
+    <select id="resolution" name="resolution" required>
+      <option value="resolved">조치 완료</option>
+      <option value="false_positive">오탐</option>
+      <option value="other">기타</option>
+    </select>
+    <label for="note">메모 (선택)</label>
+    <textarea id="note" name="note" maxlength="500" rows="3"></textarea>
+    <button class="btn primary" type="submit">인시던트 종결</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

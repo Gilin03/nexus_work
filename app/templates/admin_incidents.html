@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}보안 인시던트 · NEXUS SOC{% endblock %}
+{% block content %}
+<section class="sheet">
+  <h1>보안 인시던트</h1>
+  <p class="hint">탐지 사건과 대응 이력을 조회하고 종결합니다. AI 분석과 차단 승인은 AI-XDR 화면에서 관리합니다.</p>
+  <p><a class="btn" href="{{ url_for('admin.xdr_assessments') }}">AI-XDR 판정 보기</a></p>
+  {% if unavailable %}
+    <p class="alert" role="alert">Ticket API에 연결할 수 없습니다. 서버 측 n8n Ticket API 설정을 확인하세요.</p>
+  {% elif incidents %}
+  <div class="scroll">
+    <table class="audit">
+      <thead><tr><th>Ticket</th><th>상태</th><th>출발지 IP</th><th>Rule</th><th>이벤트</th><th>최초 시각</th><th>최근 시각</th></tr></thead>
+      <tbody>
+      {% for incident in incidents %}
+        <tr>
+          <td><a href="{{ url_for('admin.incident_detail', ticket_db_id=incident.id) }}">{{ incident.display_id }}</a></td>
+          <td><span class="badge">{{ incident.status }}</span></td>
+          <td class="mono">{{ incident.src_ip or 'IP 없음' }}</td>
+          <td>{{ incident.rule_ids | join(', ') or '—' }}</td>
+          <td>{{ incident.event_count or 0 }}</td>
+          <td>{{ incident.first_seen or '—' }}</td>
+          <td>{{ incident.last_seen or '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="hint">표시할 인시던트가 없습니다.</p>{% endif %}
+</section>
+{% endblock %}

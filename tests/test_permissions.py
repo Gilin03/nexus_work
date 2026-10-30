@@ -660,3 +660,10 @@ def test_security_dashboard_menu_entry_follows_the_permission(aapp, root):
     mgr_menu = as_user(aapp, "zz_mgr").get("/").get_data(as_text=True)
     assert ">재무 보고</a>" in mgr_menu and ">기밀 문서함</a>" in mgr_menu
     assert ">재무 보고</a>" not in as_user(aapp, "zz_emp").get("/").get_data(as_text=True)
+
+
+def test_incident_menu_entry_follows_security_dashboard_permission(aapp, root):
+    sec_menu = as_user(aapp, "zz_sec").get("/").get_data(as_text=True)
+    admin_menu = as_user(aapp, "zz_adm").get("/").get_data(as_text=True)
+    assert ">보안 인시던트</a>" in sec_menu
+    assert ">보안 인시던트</a>" not in admin_menu
