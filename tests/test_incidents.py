@@ -191,3 +191,56 @@ def test_assessment_lookup_matches_numeric_fk_or_external_ticket_id(aapp, monkey
     assert params == (86, "NX-DB-000086")
     assert "incident_ticket_id = %s" in query and "incident_ticket_id IS NULL" in query
     assert "$.ticket_ids" in query
+
+
+def test_ticket_api_missing_configuration_logs_names_without_values(aapp, caplog):
+    aapp.config.update({
+        "N8N_TICKETS_URL": "",
+        "N8N_TICKET_AUTH_HEADER": "",
+        "N8N_TICKET_AUTH_VALUE": "secret-must-not-be-logged",
+    })
+    with aapp.app_context():
+        try:
+            incident_api.list_tickets()
+            assert False, "missing Ticket API configuration should fail"
+        except incident_api.TicketApiError:
+            pass
+    assert "incident_ticket_api_config_error" in caplog.text
+    assert "N8N_TICKETS_URL" in caplog.text
+    assert "N8N_TICKET_AUTH_HEADER" in caplog.text
+    assert "N8N_TICKET_AUTH_VALUE" not in caplog.text
+    assert "secret-must-not-be-logged" not in caplog.text
+
+
+def test_ticket_api_http_failure_logs_status_without_response_body(aapp, monkeypatch, caplog):
+    _ticket_api_config(aapp)
+    def forbidden(_request, timeout):
+        raise HTTPError("http://n8n.test/webhook/nexus-tickets", 403, "forbidden", {}, io.BytesIO(b"private response"))
+    monkeypatch.setattr(incident_api, "urlopen", forbidden)
+    with aapp.app_context():
+        try:
+            incident_api.list_tickets()
+            assert False, "HTTP 403 should fail"
+        except incident_api.TicketApiError as exc:
+            assert exc.status_code == 403
+    assert "incident_ticket_api_http_error" in caplog.text
+    assert "status=403" in caplog.text
+    assert "private response" not in caplog.text
+    assert "secret-test-only" not in caplog.text
+
+
+def test_ticket_api_timeout_logs_transport_cause(aapp, monkeypatch, caplog):
+    _ticket_api_config(aapp)
+    def timeout(_request, timeout):
+        raise TimeoutError("timed out")
+    monkeypatch.setattr(incident_api, "urlopen", timeout)
+    with aapp.app_context():
+        try:
+            incident_api.list_tickets()
+            assert False, "timeout should fail"
+        except incident_api.TicketApiError:
+            pass
+    assert "incident_ticket_api_transport_error" in caplog.text
+    assert "TimeoutError" in caplog.text
+    assert "timed out" in caplog.text
+    assert "secret-test-only" not in caplog.text
