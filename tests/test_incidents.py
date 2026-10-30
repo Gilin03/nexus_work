@@ -173,7 +173,11 @@ def test_incident_detail_shows_local_alerts_responses_and_assessment(aapp, root,
         "id": 12, "display_id": "NX-DB-000086", "status": "open", "src_ip": "192.0.2.10",
         "rule_ids": ["R8"], "user_names": ["analyst"], "event_count": 35,
         "first_seen": "2026-10-30 01:00:00", "last_seen": "2026-10-30 01:05:00",
-        "responses": [{"action": "notify"}],
+        "responses": [{
+            "action": "auto_block", "status": "success", "src_ip": "192.0.2.10",
+            "result": "blocked_ips_registered", "assessment_id": "assessment-1",
+            "policy_reason": "policy_passed", "ticket_id": "NX-DB-000086",
+        }],
         "alerts": [{"alert_id": "graylog-alert-86", "rule_id": "R8", "event_type": "not_found", "occurred_at": "2026-10-30 01:05:00"}],
     }
     monkeypatch.setattr(admin.incidents, "get_ticket", lambda _id: ticket)
@@ -184,7 +188,7 @@ def test_incident_detail_shows_local_alerts_responses_and_assessment(aapp, root,
     response = as_user(aapp, "zz_sec").get("/admin/incidents/12")
     html = response.get_data(as_text=True)
     assert response.status_code == 200
-    for text in ("NX-DB-000086", "not_found", "assessment-1", "notify"):
+    for text in ("NX-DB-000086", "not_found", "assessment-1", "AI-XDR 야간 자동 차단", "차단 목록에 15분 등록"):
         assert text in html
     assert "차단 승인" not in html and "AI 승인" not in html
 
@@ -316,3 +320,32 @@ def test_push_event_local_db_roundtrip_and_close(aapp, root, monkeypatch):
                 placeholders = ",".join(["%s"] * len(ids))
                 cur.execute(f"DELETE FROM security_incident_alerts WHERE ticket_id IN ({placeholders})", ids)
                 cur.execute(f"DELETE FROM security_incident_tickets WHERE id IN ({placeholders})", ids)
+
+
+def test_record_auto_block_result_links_external_ticket_and_is_idempotent(monkeypatch):
+    from app import db, incidents
+
+    reads, writes = [], []
+    monkeypatch.setattr(db, "query_all", lambda sql, params=(): reads.append((sql, params)) or [{"id": 612}])
+    monkeypatch.setattr(db, "execute_rowcount", lambda sql, params=(): writes.append((sql, params)) or 1)
+    response = {
+        "response_id": "auto_block:assessment-1", "action": "auto_block", "status": "success",
+        "reason": "block_succeeded", "assessment_id": "assessment-1", "rule_id": "R8",
+        "ticket_id": "NX-DB-000086", "src_ip": "203.0.113.55", "policy_reason": "policy_passed",
+        "executed_at": "2026-10-30T14:00:00+00:00", "minutes": 15,
+        "result": "blocked_ips_registered",
+    }
+
+    updated = incidents.record_auto_block_result(["NX-DB-000086"], response)
+
+    assert updated == 1
+    assert "security_incident_alerts" in reads[0][0]
+    assert reads[0][1] == ("NX-DB-000086",)
+    assert "JSON_SEARCH" in writes[0][0]
+    assert "security_incident_tickets" in writes[0][0]
+    assert writes[0][1][0] == "auto_block:assessment-1"
+    assert writes[0][1][-1] == 612
+    stored_response = json.loads(writes[0][1][1])
+    assert stored_response["result"] == "blocked_ips_registered"
+    assert stored_response["assessment_id"] == "assessment-1"
+    assert stored_response["ticket_id"] == "NX-DB-000086"

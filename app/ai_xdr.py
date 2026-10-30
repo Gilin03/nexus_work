@@ -635,17 +635,18 @@ def classify_phase(now, config):
 
 
 def _block_candidate_error(assessment, summary, config, now):
-    from .internal_api import AUTO_BLOCK_WHITELIST
-
     rules = summary.get("rule_ids") or []
     if not rules or not set(rules).issubset(AUTO_BLOCK_RULES):
         return "rule_not_allowed"
     raw_ip = str(summary.get("src_ip") or "")
     try:
-        ip = ipaddress.ip_address(raw_ip).compressed
+        parsed_ip = ipaddress.ip_address(raw_ip)
     except ValueError:
         return "invalid_or_missing_ip"
-    if ip in AUTO_BLOCK_WHITELIST or ipaddress.ip_address(ip).is_loopback:
+    if parsed_ip.is_unspecified or parsed_ip.is_multicast:
+        return "invalid_or_missing_ip"
+    ip = parsed_ip.compressed
+    if security.is_protected_block_ip(ip):
         return "whitelisted_ip"
     try:
         age = (_parse_datetime(now) - _parse_datetime(summary.get("last_seen"))).total_seconds()
@@ -761,7 +762,11 @@ def evaluate_policy(assessment, summary, config, now=None):
 
 def _assessment_status(assessment, policy, action_result=None, rule_ids=None):
     if action_result is not None:
-        return "AUTO_EXECUTED" if action_result.get("blocked") else "PENDING"
+        if action_result.get("blocked"):
+            return "AUTO_EXECUTED"
+        if action_result.get("duplicate"):
+            return "NO_ACTION"
+        return "PENDING"
     if rule_ids == ["R1"] and not policy.get("approval_allowed", False):
         return "NO_ACTION"
     if assessment.get("verdict") in {"BENIGN", "REVIEW_REQUIRED"} and \
@@ -852,15 +857,79 @@ def process_ready_windows(limit=1, now=None):
 
         ai_result = triage(summary, assessment_id)
         config = current_app.config
-        policy = evaluate_policy(ai_result, summary, config, now=now)
+        try:
+            policy = evaluate_policy(ai_result, summary, config, now=now)
+        except Exception:
+            policy = {"phase": "policy_error", "auto_candidate": False, "auto_allowed": False,
+                      "approval_allowed": False, "reason": "policy_evaluation_error"}
         action_result = None
         if policy["auto_allowed"]:
-            from .internal_api import AUTO_BLOCK_REASONS
             rule_id = summary["rule_ids"][0]
-            reason = AUTO_BLOCK_REASONS[rule_id]
-            blocked = security.block_ip(summary["src_ip"], reason=f"ai_xdr_{rule_id}_{reason}", minutes=15, created_by="ai_xdr")
-            action_result = {"blocked": bool(blocked), "rule_id": rule_id, "minutes": 15,
-                             "reason": "block_succeeded" if blocked else "block_failed"}
+            ip = ipaddress.ip_address(summary["src_ip"]).compressed
+            try:
+                existing_block = db.query_one(
+                    "SELECT 1 AS active FROM blocked_ips WHERE ip_address = %s AND blocked_until > NOW() LIMIT 1",
+                    (ip,),
+                )
+            except Exception:
+                policy["auto_allowed"] = False
+                policy["reason"] = "block_state_unavailable"
+                action_result = {"blocked": False, "duplicate": False, "action": "auto_block",
+                                 "status": "skipped", "reason": "block_state_unavailable"}
+            else:
+                if existing_block:
+                    policy["auto_allowed"] = False
+                    policy["reason"] = "already_blocked_ip"
+                    action_result = {"blocked": False, "duplicate": True, "action": "auto_block",
+                                     "status": "skipped", "reason": "already_blocked_ip"}
+                else:
+                    ticket_ids = sorted(set(summary.get("ticket_ids") or []))[:50]
+                    ticket_label = ",".join(ticket_ids)[:80] or "no-ticket"
+                    block_reason = f"ai_xdr_auto:{assessment_id}:{ticket_label}:{rule_id}"[:200]
+                    executed_at = datetime.now(UTC).isoformat()
+                    blocked = security.block_ip(ip, reason=block_reason, minutes=15, created_by="ai_xdr_auto")
+                    action_result = {
+                        "blocked": bool(blocked), "duplicate": False, "action": "auto_block",
+                        "status": "success" if blocked else "failure", "success": bool(blocked),
+                        "assessment_id": assessment_id, "src_ip": ip, "rule_id": rule_id,
+                        "ticket_ids": ticket_ids, "minutes": 15, "executed_at": executed_at,
+                        "policy_reason": policy["reason"],
+                        "reason": "block_succeeded" if blocked else "block_failed",
+                    }
+            if action_result and action_result.get("status") == "skipped":
+                action_result.update({
+                    "success": False, "assessment_id": assessment_id, "src_ip": ip,
+                    "rule_id": rule_id, "ticket_ids": sorted(set(summary.get("ticket_ids") or []))[:50],
+                    "minutes": 15, "executed_at": datetime.now(UTC).isoformat(),
+                    "policy_reason": policy["reason"],
+                })
+            if action_result:
+                try:
+                    from . import incidents
+                    incidents.record_auto_block_result(action_result.get("ticket_ids", []), {
+                        "response_id": f"auto_block:{assessment_id}", "action": "auto_block",
+                        "created_at": action_result["executed_at"], "executed_at": action_result["executed_at"],
+                        "status": action_result["status"], "reason": action_result["reason"],
+                        "result": {
+                            "success": "blocked_ips_registered",
+                            "failure": "block_registration_failed",
+                            "skipped": "automatic_block_skipped",
+                        }.get(action_result["status"], "automatic_block_skipped"),
+                        "assessment_id": assessment_id, "src_ip": ip, "rule_id": rule_id,
+                        "policy_reason": policy["reason"],
+                        "ticket_id": ",".join(action_result.get("ticket_ids", []))[:200],
+                        "minutes": 15,
+                    })
+                except Exception as exc:
+                    security.log_event("xdr_incident_response_write", "ERROR", type(exc).__name__,
+                                       assessment_id=assessment_id, rule_id=rule_id)
+                security.log_event(
+                    "xdr_auto_block", "BLOCK" if action_result.get("blocked") else "WARN",
+                    action_result["reason"], assessment_id=assessment_id, src_ip=ip,
+                    action="auto_block", success=bool(action_result.get("success")),
+                    executed_at=action_result["executed_at"], policy_reason=policy["reason"],
+                    ticket_ids=action_result.get("ticket_ids", []),
+                )
         status = _assessment_status(ai_result, policy, action_result, summary["rule_ids"])
         response_result = action_result or {"blocked": False, "reason": policy["reason"]}
         response_result["auto_candidate"] = policy["auto_candidate"]

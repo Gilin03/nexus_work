@@ -42,7 +42,7 @@
   <h2>대응 이력</h2>
   {% if incident.responses %}
   <ul>{% for item in incident.responses %}
-    <li>{{ item.time or item.created_at or item.timestamp or '시각 미기록' }} · {{ {'resolved':'조치 완료','false_positive':'오탐','other':'기타'}.get(item.resolution, item.action or item.type or item.status or '대응 기록') }}{% if item.actor %} · {{ item.actor }}{% endif %}{% if item.note %}<br>{{ item.note }}{% endif %}{% if item.result %}<br>{{ item.result }}{% endif %}</li>
+    <li>{{ item.time or item.created_at or item.timestamp or '시각 미기록' }} · {{ {'resolved':'조치 완료','false_positive':'오탐','other':'기타','auto_block':'AI-XDR 야간 자동 차단'}.get(item.resolution, {'auto_block':'AI-XDR 야간 자동 차단'}.get(item.action, item.action or item.type or item.status or '대응 기록')) }}{% if item.src_ip %} · {{ item.src_ip }}{% endif %}{% if item.status %} · {{ {'success':'성공','failure':'실패','skipped':'건너뜀'}.get(item.status, item.status) }}{% endif %}{% if item.actor %} · {{ item.actor }}{% endif %}{% if item.note %}<br>{{ item.note }}{% endif %}{% if item.result %}<br>{{ {'blocked_ips_registered':'차단 목록에 15분 등록','block_registration_failed':'차단 목록 등록 실패','automatic_block_skipped':'중복 또는 확인 오류로 자동 차단 건너뜀'}.get(item.result, item.result) }}{% endif %}{% if item.policy_reason %}<br>정책: {{ item.policy_reason }}{% endif %}{% if item.ticket_id %}<br>Ticket: {{ item.ticket_id }}{% endif %}</li>
   {% endfor %}</ul>
   {% else %}<p class="hint">대응 기록이 없습니다.</p>{% endif %}
 
