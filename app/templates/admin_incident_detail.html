@@ -23,7 +23,7 @@
       <td>{{ alert.user or '—' }}</td><td class="mono">{{ alert.src_ip or '—' }}</td><td>{{ alert.event_count or 1 }}</td>
     </tr>{% endfor %}</tbody>
   </table></div>
-  {% else %}<p class="hint">Ticket API가 탐지 이력을 제공하지 않았습니다.</p>{% endif %}
+  {% else %}<p class="hint">기록된 탐지 이력이 없습니다.</p>{% endif %}
 
   <h2>AI-XDR 분석 요약</h2>
   {% if xdr_unavailable %}<p class="alert" role="alert">AI-XDR 분석 저장소를 읽을 수 없습니다.</p>

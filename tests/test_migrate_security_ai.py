@@ -27,6 +27,8 @@ def test_migration_requires_explicit_database(monkeypatch):
 def test_migration_uses_only_rerunnable_create_and_scoped_grants():
     assert all("CREATE TABLE IF NOT EXISTS" in ddl for ddl in migrate_security_ai.DDLS)
     assert all("`{db}`." in grant for grant in migrate_security_ai.GRANTS)
+    assert any("security_incident_alerts" in grant and "GRANT SELECT, INSERT" in grant
+               and "nexus_app" in grant for grant in migrate_security_ai.GRANTS)
     assert not any(word in " ".join(migrate_security_ai.DDLS).upper() for word in ("DROP TABLE", "TRUNCATE TABLE"))
 
 

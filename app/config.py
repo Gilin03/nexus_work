@@ -74,12 +74,6 @@ class Config:
         self.NVIDIA_MODEL = os.environ.get("NVIDIA_MODEL", "minimaxai/minimax-m3.1-flash").strip()
         self.NVIDIA_BASE_URL = os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").strip()
 
-        # Incident UI calls the existing Published n8n Ticket webhooks; credentials stay server-side.
-        self.N8N_TICKETS_URL = os.environ.get("N8N_TICKETS_URL", "").strip()
-        self.N8N_TICKET_ACTION_URL = os.environ.get("N8N_TICKET_ACTION_URL", "").strip()
-        self.N8N_TICKET_AUTH_HEADER = os.environ.get("N8N_TICKET_AUTH_HEADER", "").strip()
-        self.N8N_TICKET_AUTH_VALUE = os.environ.get("N8N_TICKET_AUTH_VALUE", "").strip()
-
         # AI-XDR is opt-in and starts in dry-run. An unset/invalid confidence keeps auto response closed.
         self.XDR_ENABLED = os.environ.get("XDR_ENABLED", "1") == "1"
         self.XDR_AUTO_ENABLED = os.environ.get("XDR_AUTO_ENABLED", "0") == "1"

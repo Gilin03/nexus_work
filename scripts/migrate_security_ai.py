@@ -107,6 +107,7 @@ DDLS = [
 GRANTS = [
     "GRANT SELECT, INSERT, DELETE ON `{db}`.security_ai_tool_denials TO 'nexus_app'@'%'",
     "GRANT SELECT, INSERT, UPDATE, DELETE ON `{db}`.security_incident_tickets TO 'nexus_app'@'%'",
+    "GRANT SELECT, INSERT ON `{db}`.security_incident_alerts TO 'nexus_app'@'%'",
     "GRANT SELECT, INSERT, UPDATE, DELETE ON `{db}`.security_xdr_assessments TO 'nexus_app'@'%'",
     "GRANT SELECT, INSERT, UPDATE, DELETE ON `{db}`.security_xdr_events TO 'nexus_app'@'%'"
 ]

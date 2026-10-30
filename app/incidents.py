@@ -1,133 +1,27 @@
-"""Existing n8n Ticket API client and read-only AI-XDR correlation queries."""
+"""Local Incident Ticket ingestion, queries, and close-only actions."""
+import hashlib
+import ipaddress
 import json
 import re
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qsl
-from urllib.request import Request, urlopen
-
-from flask import current_app
+from datetime import datetime, timezone
 
 from . import db
 
 
-class TicketApiError(RuntimeError):
-    def __init__(self, code="ticket_api_unavailable", status_code=None):
-        super().__init__(code)
-        self.code = code
-        self.status_code = status_code
+RULE_IDS = {f"R{number}" for number in range(1, 13)}
+TICKET_ID_RE = re.compile(r"NX-DB-\d{6,18}", re.IGNORECASE)
+EVENT_FIELDS = {
+    "event_type", "injection_type", "source_type", "source_component", "trigger_source",
+    "user", "role", "src_ip", "request_id", "session_id", "tool_name", "resource_class",
+    "resource_id", "trigger_resource_id", "pattern_id", "decision", "reason", "severity",
+    "path", "resource", "required", "count", "window_seconds", "failed_attempts",
+    "lock_request_id", "trigger_event_type",
+}
+RESPONSE_FIELDS = {"action", "created_at", "at", "actor", "by", "status", "reason", "assessment_id", "rule_id", "result"}
 
 
 def display_ticket_id(ticket_db_id):
     return f"NX-DB-{int(ticket_db_id):06d}"
-
-
-def _api_config(action=False):
-    config = current_app.config
-    url_key = "N8N_TICKET_ACTION_URL" if action else "N8N_TICKETS_URL"
-    url = config.get(url_key, "").strip()
-    header = config.get("N8N_TICKET_AUTH_HEADER", "").strip()
-    value = config.get("N8N_TICKET_AUTH_VALUE", "").strip()
-    missing = [name for name, item in (
-        (url_key, url), ("N8N_TICKET_AUTH_HEADER", header), ("N8N_TICKET_AUTH_VALUE", value)
-    ) if not item]
-    invalid = []
-    try:
-        parsed = urlsplit(url)
-    except ValueError:
-        parsed = None
-        invalid.append("url")
-    if parsed and (parsed.scheme not in {"http", "https"} or not parsed.netloc):
-        invalid.append("url")
-    if header and not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", header):
-        invalid.append("auth_header")
-    if missing or invalid:
-        current_app.logger.warning(
-            "incident_ticket_api_config_error target=%s missing=%s invalid=%s",
-            "ticket_action" if action else "tickets",
-            ",".join(missing) or "none",
-            ",".join(invalid) or "none",
-        )
-        raise TicketApiError() from None
-    return url, header, value
-
-
-def _request(method, url, body=None):
-    _configured_url, header, value = _api_config(action=method == "POST")
-    headers = {"Accept": "application/json", header: value}
-    data = None
-    if body is not None:
-        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-        headers["Content-Type"] = "application/json"
-    request = Request(url, data=data, headers=headers, method=method)
-    target = "ticket_action" if method == "POST" else "tickets"
-    try:
-        with urlopen(request, timeout=8) as response:
-            payload = response.read(4 * 1024 * 1024 + 1)
-            if len(payload) > 4 * 1024 * 1024:
-                current_app.logger.warning(
-                    "incident_ticket_api_response_error target=%s method=%s reason=response_too_large", target, method
-                )
-                raise TicketApiError("ticket_api_response_too_large")
-            result = json.loads(payload.decode("utf-8")) if payload else {}
-            if not isinstance(result, dict):
-                current_app.logger.warning(
-                    "incident_ticket_api_response_error target=%s method=%s reason=invalid_json_shape", target, method
-                )
-                raise TicketApiError("ticket_api_invalid_response")
-            return result
-    except HTTPError as exc:
-        current_app.logger.warning(
-            "incident_ticket_api_http_error target=%s method=%s status=%s", target, method, exc.code
-        )
-        try:
-            result = json.loads(exc.read(65536).decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            result = {}
-        if method == "POST" and exc.code == 409 and result.get("status") == "already_closed":
-            return result
-        raise TicketApiError("ticket_api_rejected", exc.code) from None
-    except URLError as exc:
-        reason = exc.reason
-        if isinstance(reason, OSError):
-            detail = reason.strerror or type(reason).__name__
-            error_type = type(reason).__name__
-            if reason.errno is not None:
-                detail = f"errno={reason.errno} {detail}"
-        else:
-            detail = str(reason)
-            error_type = type(reason).__name__
-        detail = re.sub(r"[\r\n]+", " ", detail)[:180]
-        current_app.logger.warning(
-            "incident_ticket_api_transport_error target=%s method=%s exception=%s detail=%s",
-            target, method, error_type, detail or "unavailable",
-        )
-        raise TicketApiError("ticket_api_unavailable") from None
-    except (TimeoutError, OSError) as exc:
-        detail = getattr(exc, "strerror", None)
-        if not detail and isinstance(exc, TimeoutError):
-            detail = str(exc) or "timed out"
-        detail = detail or type(exc).__name__
-        errno = getattr(exc, "errno", None)
-        if errno is not None:
-            detail = f"errno={errno} {detail}"
-        detail = re.sub(r"[\r\n]+", " ", detail)[:180]
-        current_app.logger.warning(
-            "incident_ticket_api_transport_error target=%s method=%s exception=%s detail=%s",
-            target, method, type(exc).__name__, detail,
-        )
-        raise TicketApiError("ticket_api_unavailable") from None
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        current_app.logger.warning(
-            "incident_ticket_api_response_error target=%s method=%s exception=%s", target, method, type(exc).__name__
-        )
-        raise TicketApiError("ticket_api_invalid_response") from None
-
-
-def _with_query(url, params):
-    parts = urlsplit(url)
-    query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    query.update(params)
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
 def _as_list(value):
@@ -135,76 +29,332 @@ def _as_list(value):
         return value
     if isinstance(value, str):
         try:
-            parsed = json.loads(value)
-            return parsed if isinstance(parsed, list) else []
+            decoded = json.loads(value)
+            return decoded if isinstance(decoded, list) else []
         except (TypeError, ValueError):
             return []
     return []
 
 
-def _normalise_ticket(ticket):
-    if not isinstance(ticket, dict):
-        return None
-    row = dict(ticket)
-    numeric_id = row.get("ticket_db_id")
-    if numeric_id is None and str(row.get("id", "")).isdigit():
-        numeric_id = row["id"]
-    if numeric_id is None or not str(numeric_id).isdigit():
-        return None
-    row["id"] = int(numeric_id)
-    row["ticket_db_id"] = row["id"]
-    row["ticket_id"] = display_ticket_id(row["id"])
-    row["display_id"] = row["ticket_id"]
-    # The Published n8n API uses display-oriented aliases; expose stable names
-    # to the Flask templates without changing its response contract.
-    row["rule_ids"] = _as_list(row.get("rule_ids", row.get("rules")))
-    row["user_names"] = _as_list(row.get("user_names", row.get("users")))
-    row["responses"] = _as_list(row.get("responses"))
-    row["alerts"] = _as_list(row.get("alerts"))
-    row["event_count"] = row.get("event_count", row.get("count", 0))
-    row["latest_event"] = row.get("latest_event", row.get("latest", {}))
-    row["ticket_type"] = row.get("ticket_type", row.get("type", ""))
-    return row
+def _text(value, name, maximum, *, required=False):
+    if value is None:
+        value = ""
+    if not isinstance(value, (str, int)):
+        raise ValueError(f"invalid_{name}")
+    value = str(value).strip()
+    if required and not value:
+        raise ValueError(f"missing_{name}")
+    if len(value) > maximum or any(ord(char) < 32 for char in value):
+        raise ValueError(f"invalid_{name}")
+    return value
 
 
-def list_tickets():
-    url, _header, _value = _api_config()
-    result = _request("GET", url)
-    rows = result.get("tickets")
-    if not isinstance(rows, list):
-        raise TicketApiError("ticket_api_invalid_response")
-    tickets = [row for row in (_normalise_ticket(item) for item in rows) if row]
-    return sorted(tickets, key=lambda row: str(row.get("last_seen") or row.get("first_seen") or ""), reverse=True)
+def _parse_time(value, name):
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str) and value.strip():
+        raw = value.strip()
+        if len(raw) > 64:
+            raise ValueError(f"invalid_{name}")
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"invalid_{name}") from exc
+    else:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
+def _safe_latest_event(value):
+    if not isinstance(value, dict):
+        return {}
+    event = value.get("event") if isinstance(value.get("event"), dict) else value
+    safe_event = {}
+    for key in EVENT_FIELDS:
+        item = event.get(key)
+        if key not in event or not isinstance(item, (str, int, float, bool)):
+            continue
+        if key == "reason" and isinstance(item, str) and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", item):
+            continue
+        safe_event[key] = item
+    result = {"event": safe_event}
+    for parent, allowed in (
+        ("rule", {"id", "stable_name", "display_name", "severity", "priority"}),
+        ("alert", {"id", "timestamp", "priority"}),
+    ):
+        item = value.get(parent)
+        if isinstance(item, dict):
+            result[parent] = {key: item[key] for key in allowed if key in item and isinstance(item[key], (str, int, float, bool))}
+    for key in ("decision", "action_level"):
+        if key in value and isinstance(value[key], (str, int, float, bool)):
+            result[key] = value[key]
+    return result
+
+
+def _safe_responses(value):
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("invalid_responses")
+    safe = []
+    for item in value[-30:]:
+        if not isinstance(item, dict):
+            continue
+        entry = {}
+        for key in RESPONSE_FIELDS:
+            val = item.get(key)
+            if isinstance(val, (str, int, float, bool)):
+                if key in {"reason", "result"} and isinstance(val, str) and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", val):
+                    continue
+                entry[key] = str(val)[:200] if isinstance(val, str) else val
+        if entry:
+            safe.append(entry)
+    return safe
+
+
+def _validate_event(payload):
+    if not isinstance(payload, dict):
+        raise ValueError("invalid_payload")
+    ticket_id = _text(payload.get("ticket_id"), "ticket_id", 32, required=True)
+    if not TICKET_ID_RE.fullmatch(ticket_id):
+        raise ValueError("invalid_ticket_id")
+    alert_id = _text(payload.get("alert_id"), "alert_id", 160, required=True)
+    rule_id = _text(payload.get("rule_id"), "rule_id", 8, required=True).upper()
+    if rule_id not in RULE_IDS:
+        raise ValueError("invalid_rule_id")
+    event_type = _text(payload.get("event_type"), "event_type", 80, required=True)
+    src_ip = _text(payload.get("src_ip"), "src_ip", 45)
+    if src_ip:
+        try:
+            src_ip = str(ipaddress.ip_address(src_ip))
+        except ValueError as exc:
+            raise ValueError("invalid_src_ip") from exc
+    user = _text(payload.get("user"), "user", 64)
+    ticket_key = _text(payload.get("ticket_key"), "ticket_key", 255)
+    if not ticket_key:
+        ticket_key = f"ip:{src_ip}" if src_ip else (f"user:{user}" if user else "")
+    if not ticket_key:
+        raise ValueError("missing_ticket_key")
+    try:
+        event_count = int(payload.get("event_count", 1))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid_event_count") from exc
+    if event_count < 1 or event_count > 100000:
+        raise ValueError("invalid_event_count")
+    first_seen = _parse_time(payload.get("first_seen"), "first_seen")
+    last_seen = _parse_time(payload.get("last_seen"), "last_seen")
+    fallback_time = _parse_time(payload.get("timestamp"), "timestamp")
+    if first_seen is None and last_seen is None and fallback_time is None:
+        raise ValueError("missing_event_time")
+    first_seen = first_seen or fallback_time or last_seen
+    last_seen = last_seen or fallback_time or first_seen
+    ticket_type = _text(payload.get("ticket_type") or "보안 경보", "ticket_type", 80, required=True)
+    try:
+        type_rank = int(payload.get("type_rank", 1))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid_type_rank") from exc
+    if not 1 <= type_rank <= 65535:
+        raise ValueError("invalid_type_rank")
+    latest_event = _safe_latest_event(payload.get("latest_event"))
+    responses = _safe_responses(payload.get("responses", []))
+    receipt_id = "incident:" + hashlib.sha256(alert_id.encode("utf-8")).hexdigest()[:55]
+    return {
+        "ticket_id": ticket_id.upper(), "alert_id": alert_id, "ticket_key": ticket_key,
+        "rule_id": rule_id, "event_type": event_type, "src_ip": src_ip, "user": user,
+        "event_count": event_count, "first_seen": first_seen, "last_seen": last_seen,
+        "ticket_type": ticket_type, "type_rank": type_rank, "latest_event": latest_event,
+        "responses": responses, "receipt_id": receipt_id,
+    }
+
+
+def _decode_ticket(row):
+    if not row:
+        return None
+    result = dict(row)
+    for key in ("rule_ids", "user_names", "responses"):
+        result[key] = _as_list(result.get(key))
+    result["display_id"] = result.get("display_id") or display_ticket_id(result["id"])
+    result["ticket_id"] = result["display_id"]
+    return result
+
+
+def ingest_event(payload):
+    """Idempotently store one Ticket snapshot and its alert in the local Incident DB."""
+    event = _validate_event(payload)
+    duplicate = db.query_one(
+        "SELECT a.ticket_id AS local_ticket_id FROM security_incident_alerts a WHERE a.alert_id = %s",
+        (event["alert_id"],),
+    )
+    if duplicate:
+        return {
+            "ticket_db_id": int(duplicate["local_ticket_id"]),
+            "ticket_id": event["ticket_id"], "duplicate": True,
+        }
+
+    ticket = db.query_one(
+        "SELECT t.id FROM security_incident_tickets t JOIN security_incident_alerts a ON a.ticket_id=t.id "
+        "WHERE JSON_UNQUOTE(JSON_EXTRACT(a.event_payload, '$.ticket_id')) = %s ORDER BY a.occurred_at LIMIT 1",
+        (event["ticket_id"],),
+    )
+    if not ticket:
+        ticket = db.query_one(
+            "SELECT id FROM security_incident_tickets WHERE active_ticket_key = %s LIMIT 1",
+            (event["ticket_key"],),
+        )
+    created_ticket = False
+    if ticket:
+        ticket_db_id = int(ticket["id"])
+    else:
+        db.execute(
+            "INSERT INTO security_incident_tickets "
+            "(ticket_key,status,src_ip,ticket_type,type_rank,event_count,rule_ids,user_names,first_seen,last_seen,latest_event,responses) "
+            "VALUES (%s,'open',%s,%s,%s,0,JSON_ARRAY(),JSON_ARRAY(),%s,%s,CAST(%s AS JSON),JSON_ARRAY()) "
+            "ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
+            (event["ticket_key"], event["src_ip"], event["ticket_type"], event["type_rank"],
+             event["first_seen"], event["last_seen"], json.dumps(event["latest_event"], ensure_ascii=False)),
+        )
+        created_ticket = True
+        ticket = db.query_one(
+            "SELECT id FROM security_incident_tickets WHERE active_ticket_key = %s LIMIT 1",
+            (event["ticket_key"],),
+        )
+        if not ticket:
+            raise RuntimeError("incident_ticket_create_failed")
+        ticket_db_id = int(ticket["id"])
+
+    event_payload = json.dumps({
+        "ticket_id": event["ticket_id"], "ticket_key": event["ticket_key"],
+        "latest_event": event["latest_event"],
+    }, ensure_ascii=False, separators=(",", ":"))
+    inserted = db.execute_rowcount(
+        "INSERT IGNORE INTO security_incident_alerts "
+        "(alert_id,receipt_id,ticket_id,rule_id,event_type,user_name,src_ip,event_count,occurred_at,event_payload) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,CAST(%s AS JSON))",
+        (event["alert_id"], event["receipt_id"], ticket_db_id, event["rule_id"], event["event_type"],
+         event["user"], event["src_ip"], event["event_count"], event["last_seen"], event_payload),
+    )
+    if not inserted:
+        if created_ticket:
+            db.execute_rowcount(
+                "DELETE FROM security_incident_tickets WHERE id = %s AND event_count = 0 "
+                "AND NOT EXISTS (SELECT 1 FROM security_incident_alerts WHERE ticket_id = %s)",
+                (ticket_db_id, ticket_db_id),
+            )
+        duplicate = db.query_one(
+            "SELECT ticket_id AS local_ticket_id FROM security_incident_alerts WHERE alert_id = %s",
+            (event["alert_id"],),
+        )
+        return {
+            "ticket_db_id": int((duplicate or {}).get("local_ticket_id") or ticket_db_id),
+            "ticket_id": event["ticket_id"], "duplicate": True,
+        }
+
+    db.execute_rowcount(
+        "UPDATE security_incident_tickets SET "
+        "src_ip=IF(%s<>'',%s,src_ip), "
+        "ticket_type=IF(%s>type_rank,%s,ticket_type), type_rank=GREATEST(type_rank,%s), "
+        "event_count=event_count+%s, "
+        "rule_ids=IF(JSON_CONTAINS(rule_ids,JSON_QUOTE(%s)),rule_ids,JSON_ARRAY_APPEND(rule_ids,'$',%s)), "
+        "user_names=IF(%s='',user_names,IF(JSON_CONTAINS(user_names,JSON_QUOTE(%s)),user_names,JSON_ARRAY_APPEND(user_names,'$',%s))), "
+        "first_seen=LEAST(first_seen,%s), last_seen=GREATEST(last_seen,%s), "
+        "latest_event=IF(%s>=last_seen,CAST(%s AS JSON),latest_event) WHERE id=%s",
+        (event["src_ip"], event["src_ip"], event["type_rank"], event["ticket_type"], event["type_rank"],
+         event["event_count"], event["rule_id"], event["rule_id"], event["user"], event["user"], event["user"],
+         event["first_seen"], event["last_seen"], event["last_seen"],
+         json.dumps(event["latest_event"], ensure_ascii=False), ticket_db_id),
+    )
+    for response in event["responses"]:
+        response_json = json.dumps(response, ensure_ascii=False, separators=(",", ":"))
+        db.execute_rowcount(
+            "UPDATE security_incident_tickets SET responses=IF(JSON_CONTAINS(COALESCE(responses,JSON_ARRAY()),"
+            "CAST(%s AS JSON)),responses,JSON_ARRAY_APPEND(IF(JSON_LENGTH(COALESCE(responses,JSON_ARRAY()))>=30,"
+            "JSON_REMOVE(COALESCE(responses,JSON_ARRAY()),'$[0]'),COALESCE(responses,JSON_ARRAY())), '$', CAST(%s AS JSON))) "
+            "WHERE id=%s",
+            (response_json, response_json, ticket_db_id),
+        )
+    return {"ticket_db_id": ticket_db_id, "ticket_id": event["ticket_id"], "duplicate": False}
+
+
+def list_tickets(limit=500):
+    rows = db.query_all(
+        "SELECT t.id, COALESCE((SELECT JSON_UNQUOTE(JSON_EXTRACT(a.event_payload,'$.ticket_id')) "
+        "FROM security_incident_alerts a WHERE a.ticket_id=t.id AND JSON_EXTRACT(a.event_payload,'$.ticket_id') IS NOT NULL "
+        "ORDER BY a.occurred_at LIMIT 1), CONCAT('NX-DB-',LPAD(t.id,6,'0'))) AS display_id, "
+        "t.ticket_key,t.status,t.src_ip,t.ticket_type,t.type_rank,t.event_count,t.rule_ids,t.user_names,"
+        "t.first_seen,t.last_seen,t.latest_event,t.resolution,t.closed_at,t.note,t.responses "
+        "FROM security_incident_tickets t ORDER BY t.last_seen DESC LIMIT %s",
+        (max(1, min(int(limit), 500)),),
+    )
+    return [_decode_ticket(row) for row in rows]
 
 
 def get_ticket(ticket_db_id):
-    url, _header, _value = _api_config()
-    result = _request("GET", _with_query(url, {"ticket_db_id": str(int(ticket_db_id))}))
-    ticket = result.get("ticket")
-    if ticket is None:
-        # Backward-compatible fallback for the existing list-only response.
-        rows = result.get("tickets", [])
-        if not isinstance(rows, list):
-            return None
-        ticket = next((row for row in rows if str(row.get("id", "")) == str(ticket_db_id)), None)
-    row = _normalise_ticket(ticket)
-    if not row or row["id"] != int(ticket_db_id):
+    row = db.query_one(
+        "SELECT t.id, COALESCE((SELECT JSON_UNQUOTE(JSON_EXTRACT(a.event_payload,'$.ticket_id')) "
+        "FROM security_incident_alerts a WHERE a.ticket_id=t.id AND JSON_EXTRACT(a.event_payload,'$.ticket_id') IS NOT NULL "
+        "ORDER BY a.occurred_at LIMIT 1), CONCAT('NX-DB-',LPAD(t.id,6,'0'))) AS display_id, "
+        "t.ticket_key,t.status,t.src_ip,t.ticket_type,t.type_rank,t.event_count,t.rule_ids,t.user_names,"
+        "t.first_seen,t.last_seen,t.latest_event,t.resolution,t.closed_at,t.note,t.responses "
+        "FROM security_incident_tickets t WHERE t.id=%s",
+        (int(ticket_db_id),),
+    )
+    ticket = _decode_ticket(row)
+    if not ticket:
         return None
-    row["alerts"] = _as_list(result.get("alerts", row.get("alerts")))
-    return row
+    alerts = db.query_all(
+        "SELECT alert_id,rule_id,event_type,user_name AS user,src_ip,event_count,occurred_at,event_payload "
+        "FROM security_incident_alerts WHERE ticket_id=%s ORDER BY occurred_at,alert_id LIMIT 1000",
+        (int(ticket_db_id),),
+    )
+    for alert in alerts:
+        alert["event_payload"] = _json_object(alert.get("event_payload"))
+    ticket["alerts"] = alerts
+    ticket["latest_event"] = _json_object(ticket.get("latest_event"))
+    return ticket
+
+
+def _json_object(value):
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            result = json.loads(value)
+            return result if isinstance(result, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+    return {}
 
 
 def close_ticket(ticket_db_id, resolution, note, actor):
-    action_url, _header, _value = _api_config(action=True)
-    ticket_id = display_ticket_id(ticket_db_id)
-    return _request("POST", action_url, {
-        "ticket_db_id": int(ticket_db_id),
-        "ticket_id": ticket_id,
-        "action": "false_positive" if resolution == "false_positive" else "close",
-        "resolution": resolution,
-        "note": note,
-        "actor": actor,
-    })
+    ticket = db.query_one(
+        "SELECT id,status FROM security_incident_tickets WHERE id=%s", (int(ticket_db_id),)
+    )
+    if not ticket:
+        raise LookupError("incident_not_found")
+    if ticket.get("status") == "closed":
+        return {"status": "already_closed"}
+    if resolution not in {"resolved", "false_positive", "other"}:
+        raise ValueError("invalid_resolution")
+    response = json.dumps({
+        "action": "incident_close", "resolution": resolution, "note": str(note or "")[:500],
+        "actor": str(actor or "admin")[:64], "created_at": datetime.now(timezone.utc).isoformat(),
+    }, ensure_ascii=False, separators=(",", ":"))
+    changed = db.execute_rowcount(
+        "UPDATE security_incident_tickets SET status='closed',resolution=%s,closed_at=UTC_TIMESTAMP(6),note=%s,"
+        "responses=JSON_ARRAY_APPEND(COALESCE(responses,JSON_ARRAY()),'$',CAST(%s AS JSON)) "
+        "WHERE id=%s AND status='open'",
+        (resolution, str(note or "")[:500] or None, response, int(ticket_db_id)),
+    )
+    if not changed:
+        current = db.query_one("SELECT status FROM security_incident_tickets WHERE id=%s", (int(ticket_db_id),))
+        if not current:
+            raise LookupError("incident_not_found")
+        if current.get("status") == "closed":
+            return {"status": "already_closed"}
+        raise RuntimeError("incident_close_conflict")
+    return {"status": "closed", "ticket_db_id": int(ticket_db_id)}
 
 
 def assessments_for_ticket(ticket_id, ticket_db_id):

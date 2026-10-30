@@ -738,10 +738,11 @@ def decide_xdr_assessment(assessment_id):
 def incidents_list():
     try:
         rows = incidents.list_tickets()
-    except incidents.TicketApiError:
+    except pymysql.MySQLError as exc:
+        log_event("incident_list", "ERROR", type(exc).__name__)
         return render_template("admin_incidents.html", incidents=[], unavailable=True)
     for row in rows:
-        row["display_id"] = incidents.display_ticket_id(row["id"])
+        row["display_id"] = row.get("display_id") or incidents.display_ticket_id(row["id"])
     return render_template("admin_incidents.html", incidents=rows, unavailable=False)
 
 
@@ -750,11 +751,12 @@ def incidents_list():
 def incident_detail(ticket_db_id):
     try:
         ticket = incidents.get_ticket(ticket_db_id)
-    except incidents.TicketApiError:
+    except pymysql.MySQLError as exc:
+        log_event("incident_detail", "ERROR", type(exc).__name__, ticket_db_id=ticket_db_id)
         abort(503)
     if ticket is None:
         abort(404)
-    ticket["display_id"] = incidents.display_ticket_id(ticket_db_id)
+    ticket["display_id"] = ticket.get("display_id") or incidents.display_ticket_id(ticket_db_id)
     assessments = []
     xdr_unavailable = False
     if current_app.config.get("XDR_ENABLED"):
@@ -779,13 +781,11 @@ def incident_close(ticket_db_id):
         result = incidents.close_ticket(
             ticket_db_id, resolution, note, g.user.get("username", "admin"),
         )
-    except incidents.TicketApiError as exc:
-        if exc.status_code == 404:
-            abort(404)
-        if exc.status_code == 409:
-            abort(409)
-        log_event("incident_close", "ERROR", exc.code, ticket_id=incidents.display_ticket_id(ticket_db_id))
-        abort(503)
+    except LookupError:
+        abort(404)
+    except (RuntimeError, pymysql.MySQLError) as exc:
+        log_event("incident_close", "ERROR", type(exc).__name__, ticket_id=incidents.display_ticket_id(ticket_db_id))
+        abort(409 if isinstance(exc, RuntimeError) else 503)
     already_closed = result.get("status") == "already_closed"
     log_event(
         "incident_close", "INFO", "already_closed" if already_closed else "closed",
