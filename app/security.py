@@ -80,9 +80,57 @@ _blocked_ip_cache = {}  # {ip: (blocked: bool, reason: str, expire_at: float)}
 _CACHE_TTL = 3.0  # 초 단위 캐시
 
 
+def get_security_mode() -> bool:
+    """현재 이 프로세스가 실제로 적용 중인 방어 모드(True=ON/방어, False=OFF/취약). `current_app.config` 가 유일한 기준이다."""
+    return bool(current_app.config.get("SECURITY_MODE", True)) if current_app else True
+
+
+def set_security_mode(enabled: bool) -> bool:
+    """방어 모드를 전환하고 지금 요청을 처리 중인 프로세스에 즉시 반영한다.
+
+    `/admin/audit` 웹 토글, `scripts/toggle_defense.py`, `demo_runner.py --security` 세 경로가
+    예전에는 각자 `.env`/`os.environ` 을 따로 건드려서, 실행 중인 서버(Waitress, 쓰레드 풀 1개 프로세스)의
+    `current_app.config` 는 안 바뀐 채로 "적용됐다"고만 표시되는 불일치가 있었다(토글을 눌러도 몇 분 뒤
+    아무도 안 눌렀는데 반대로 동작하는 것처럼 보이는 원인). 이제 세 경로 모두 이 함수 하나만 호출하므로,
+    호출한 즉시 지금 떠 있는 서버의 동작이 바뀐다. `.env` 파일도 같이 갱신해서 다음 재시작 때의 기본값도 맞춰 둔다.
+    """
+    enabled = bool(enabled)
+    current_app.config["SECURITY_MODE"] = enabled
+    current_app.config["LOGIN_MAX_FAILURES"] = 5 if enabled else 999999
+    current_app.config["LOGIN_IP_LIMIT"] = 20 if enabled else 999999
+
+    val = "on" if enabled else "off"
+    os.environ["SECURITY_MODE"] = val
+    os.environ["DEFENSE_MODE"] = val
+    try:
+        from pathlib import Path
+        env_file = Path(current_app.root_path).parent / ".env"
+        if env_file.exists():
+            lines = env_file.read_text(encoding="utf-8").splitlines()
+            new_lines = []
+            sec_found, def_found = False, False
+            for line in lines:
+                if line.startswith("SECURITY_MODE="):
+                    new_lines.append(f"SECURITY_MODE={val}")
+                    sec_found = True
+                elif line.startswith("DEFENSE_MODE="):
+                    new_lines.append(f"DEFENSE_MODE={val}")
+                    def_found = True
+                else:
+                    new_lines.append(line)
+            if not sec_found:
+                new_lines.append(f"SECURITY_MODE={val}")
+            if not def_found:
+                new_lines.append(f"DEFENSE_MODE={val}")
+            env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+    return enabled
+
+
 def is_ip_blocked(ip: str) -> tuple[bool, str]:
     """해당 IP가 차단되어 있는지 확인 (만료 시간 검사 및 3초 캐시 적용)."""
-    if os.environ.get("SECURITY_MODE", "on").strip().lower() == "off":
+    if not get_security_mode():
         return False, ""
     if not ip or ip == "-" or is_protected_block_ip(ip):
         return False, ""

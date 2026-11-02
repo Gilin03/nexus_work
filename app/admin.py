@@ -25,7 +25,7 @@ import time
 from datetime import datetime, timedelta
 
 import pymysql
-from flask import Blueprint, Response, abort, current_app, g, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, current_app, g, jsonify, make_response, redirect, render_template, request, url_for
 
 from . import audit, db, incidents, security, validators
 from .approvals import conflict, forbidden
@@ -509,8 +509,13 @@ def audit_log():
     except ValueError as exc:
         log_event("input_rejected", "DENY", str(exc), field="audit_filter")
         blank = {"type": "", "decision": "", "user": "", "ip": ""}
-        return _dashboard_page(blank, "24h", audit.PAGE_SIZES[0], 1, error="검색 조건이 올바르지 않습니다.", status=400)
-    return _dashboard_page(f, period, limit, page)
+        resp = make_response(_dashboard_page(blank, "24h", audit.PAGE_SIZES[0], 1, error="검색 조건이 올바르지 않습니다.", status=400))
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+    resp = make_response(_dashboard_page(f, period, limit, page))
+    # 방어 모드 토글 직후 브라우저 캐시 때문에 배지·버튼 문구가 안 바뀐 채로 보이는 문제 방지(2026-11-02).
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 EXPORT_COLUMNS = ("시각", "이벤트", "사용자", "역할", "출발지", "판정", "사유", "메서드", "경로", "상세")
@@ -861,40 +866,6 @@ def incident_close(ticket_db_id):
 @bp.post("/audit/toggle-security")
 @permission_required("security.dashboard")
 def toggle_security_mode():
-    current_mode = current_app.config.get("SECURITY_MODE", True)
-    new_mode = not current_mode
-    current_app.config["SECURITY_MODE"] = new_mode
-    current_app.config["LOGIN_MAX_FAILURES"] = 5 if new_mode else 999999
-    current_app.config["LOGIN_IP_LIMIT"] = 20 if new_mode else 999999
-    import os
-    os.environ["SECURITY_MODE"] = "on" if new_mode else "off"
-    os.environ["DEFENSE_MODE"] = "on" if new_mode else "off"
-
-    # .env 파일에도 보존
-    try:
-        from pathlib import Path
-        env_file = Path(current_app.root_path).parent / ".env"
-        if env_file.exists():
-            lines = env_file.read_text(encoding="utf-8").splitlines()
-            new_lines = []
-            sec_found, def_found = False, False
-            val = "on" if new_mode else "off"
-            for line in lines:
-                if line.startswith("SECURITY_MODE="):
-                    new_lines.append(f"SECURITY_MODE={val}")
-                    sec_found = True
-                elif line.startswith("DEFENSE_MODE="):
-                    new_lines.append(f"DEFENSE_MODE={val}")
-                    def_found = True
-                else:
-                    new_lines.append(line)
-            if not sec_found:
-                new_lines.append(f"SECURITY_MODE={val}")
-            if not def_found:
-                new_lines.append(f"DEFENSE_MODE={val}")
-            env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-    except Exception:
-        pass
-
-    log_event("admin_action", "ALLOW", "toggle_security", mode="on" if new_mode else "off")
+    new_mode = security.set_security_mode(not security.get_security_mode())
+    log_event("admin_action", "ALLOW", "toggle_security", mode="on" if new_mode else "off", via="web")
     return redirect(url_for("admin.audit_log"), 303)
