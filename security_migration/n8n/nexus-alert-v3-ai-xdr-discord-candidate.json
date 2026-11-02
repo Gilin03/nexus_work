@@ -1326,13 +1326,13 @@
           "interval": [
             {
               "field": "minutes",
-              "minutesInterval": 3
+              "minutesInterval": 1
             }
           ]
         }
       },
       "id": "3f6b4bfc-d17e-490c-9bb9-ef3509a211cb",
-      "name": "AI-XDR 3분 집계 스케줄",
+      "name": "AI-XDR 1분 집계 스케줄",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -2224,7 +2224,7 @@
         ]
       ]
     },
-    "AI-XDR 3분 집계 스케줄": {
+    "AI-XDR 1분 집계 스케줄": {
       "main": [
         [
           {

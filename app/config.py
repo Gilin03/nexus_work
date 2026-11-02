@@ -93,7 +93,7 @@ class Config:
         self.XDR_IP_BLOCK_ENABLED = os.environ.get("XDR_IP_BLOCK_ENABLED", "0") == "1"
         self.XDR_AI_PROVIDER = os.environ.get("XDR_AI_PROVIDER", "auto").strip().lower()
         self.XDR_AI_TIMEOUT = self._int_setting("XDR_AI_TIMEOUT", 30)
-        self.XDR_TRIAGE_WINDOW_SECONDS = self._int_setting("XDR_TRIAGE_WINDOW_SECONDS", 180)
+        self.XDR_TRIAGE_WINDOW_SECONDS = self._int_setting("XDR_TRIAGE_WINDOW_SECONDS", 60)
         self.XDR_MAX_EVENT_AGE_SECONDS = self._int_setting("XDR_MAX_EVENT_AGE_SECONDS", 300)
         self.XDR_AUTO_MIN_SCORE = self._int_setting("XDR_AUTO_MIN_SCORE", 80)
         self.XDR_DAY_START_HOUR = self._int_setting("XDR_DAY_START_HOUR", 8)

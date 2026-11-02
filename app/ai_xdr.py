@@ -76,13 +76,13 @@ def _ticket_db_id(value):
 
 def _triage_window_seconds(value):
     try:
-        seconds = int(value or 180)
+        seconds = int(value or 60)
     except (TypeError, ValueError):
-        seconds = 180
+        seconds = 60
     return max(60, min(seconds, 900))
 
 
-def normalize_event_payload(payload, received_at=None, window_seconds=180):
+def normalize_event_payload(payload, received_at=None, window_seconds=60):
     """Validate the n8n contract and retain metadata only; never persist raw body/message fields."""
     if not isinstance(payload, dict):
         raise ValueError("invalid_payload")
@@ -175,7 +175,7 @@ def normalize_event_payload(payload, received_at=None, window_seconds=180):
 def ingest_event(payload):
     normalized = normalize_event_payload(
         payload,
-        window_seconds=current_app.config.get("XDR_TRIAGE_WINDOW_SECONDS", 180),
+        window_seconds=current_app.config.get("XDR_TRIAGE_WINDOW_SECONDS", 60),
     )
     event_payload = dict(normalized["event"])
     if normalized["ticket_id"]:
@@ -818,9 +818,9 @@ def _summary_for_rows(rows):
 
 
 def process_ready_windows(limit=1, now=None):
-    """Triage closed 3-minute arrival windows once, keyed by unique window_key."""
+    """Triage closed 1-minute arrival windows once, keyed by unique window_key."""
     now = _parse_datetime(now or datetime.now(UTC))
-    seconds = _triage_window_seconds(current_app.config.get("XDR_TRIAGE_WINDOW_SECONDS", 180))
+    seconds = _triage_window_seconds(current_app.config.get("XDR_TRIAGE_WINDOW_SECONDS", 60))
     windows = db.query_all(
         "SELECT window_key, MIN(window_start) AS window_start FROM security_xdr_events "
         "WHERE assessment_id IS NULL AND window_start <= TIMESTAMPADD(SECOND, -%s, UTC_TIMESTAMP()) "
