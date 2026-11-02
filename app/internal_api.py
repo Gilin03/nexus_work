@@ -305,6 +305,49 @@ def automated_ip_block():
     return jsonify(ok=True, blocked=True, ip_address=ip, rule_id=rule_id, duration_minutes=duration)
 
 
+@bp.get("/security-mode")
+def get_security_mode():
+    """현재 서버가 실제로 적용 중인 방어 모드 조회(`scripts/toggle_defense.py`, `demo_runner.py` 용)."""
+    if ip_rate_limited(f"internal_api:{get_client_ip()}", RATE_LIMIT):
+        log_event("rate_limited", "BLOCK", "internal_api_limit", via="direct")
+        return jsonify(ok=False, error="rate_limited"), 429
+
+    token = _extract_token(request)
+    if not _verify_token(token):
+        log_event("internal_api", "DENY", "bad_token", via="direct",
+                  token_fp=token_fingerprint(token), api_path="/security-mode")
+        return jsonify(ok=False, error="unauthorized", message="유효하지 않은 인증 토큰입니다."), 401
+
+    enabled = security.get_security_mode()
+    return jsonify(ok=True, security_mode="on" if enabled else "off", enabled=enabled)
+
+
+@bp.post("/security-mode")
+def set_security_mode():
+    """방어 모드 전환 API. `scripts/toggle_defense.py`·`demo_runner.py` 가 이 경로를 통해서만 모드를 바꾸도록 해서,
+    웹 토글과 CLI 스크립트가 각자 `.env` 를 따로 건드리다가 지금 떠 있는 서버 메모리와 어긋나는 문제(2026-11-02 발견)를 없앤다.
+    이 호출 하나로 지금 서버가 실제로 쓰는 상태(`current_app.config`)가 즉시 바뀐다."""
+    if ip_rate_limited(f"internal_api:{get_client_ip()}", RATE_LIMIT):
+        log_event("rate_limited", "BLOCK", "internal_api_limit", via="direct")
+        return jsonify(ok=False, error="rate_limited", message="요청 한도를 초과했습니다."), 429
+
+    token = _extract_token(request)
+    if not _verify_token(token):
+        log_event("internal_api", "DENY", "bad_token", via="direct",
+                  token_fp=token_fingerprint(token), api_path="/security-mode")
+        return jsonify(ok=False, error="unauthorized", message="유효하지 않은 인증 토큰입니다."), 401
+
+    payload = request.get_json(silent=True) or {}
+    raw_mode = str(payload.get("mode") or request.form.get("mode", "")).strip().lower()
+    if raw_mode not in ("on", "off"):
+        return jsonify(ok=False, error="invalid_mode", message="mode 는 'on' 또는 'off' 여야 합니다."), 400
+
+    enabled = security.set_security_mode(raw_mode == "on")
+    log_event("admin_action", "ALLOW", "toggle_security", mode="on" if enabled else "off", via="internal_api",
+              token_fp=token_fingerprint(token))
+    return jsonify(ok=True, security_mode="on" if enabled else "off", enabled=enabled)
+
+
 def _authorize_xdr(path):
     if ip_rate_limited(f"internal_api:{get_client_ip()}", RATE_LIMIT):
         log_event("rate_limited", "BLOCK", "internal_api_limit", via="direct")

@@ -58,48 +58,59 @@ def get_current_security_mode():
 
 
 def set_security_mode(mode: str):
-    """보안설정 ON/OFF 토글 (SECURITY_MODE 및 DEFENSE_MODE 일괄 변경)."""
+    """보안설정 ON/OFF 토글. `/internal/api/v1/security-mode` 로 지금 떠 있는 서버에 직접 반영한다.
+
+    예전엔 `.env`만 고치고 "즉시 반영됩니다"라고 했지만 실제로는 실행 중인 서버(Waitress, 단일 프로세스)가
+    그 파일을 다시 읽지 않아 반영되지 않았다(2026-11-02, SOC 대시보드 웹 토글과 섞어 쓰다가 서로 덮어써서
+    토글해도 몇 분 뒤 반대로 동작하는 것처럼 보이는 문제로 발견). 이 API 호출로 서버의
+    `current_app.config["SECURITY_MODE"]`가 바로 바뀌고, 그 API가 `.env`도 같이 갱신해 준다."""
     mode = mode.lower()
     if mode not in ("on", "off"):
         print("[-] 올바른 모드를 지정하세요: on 또는 off")
         return
 
-    text = ENV_PATH.read_text(encoding="utf-8") if ENV_PATH.exists() else ""
-    lines = text.splitlines()
-    new_lines = []
-    sec_found = False
-    def_found = False
-
-    for line in lines:
-        if line.startswith("SECURITY_MODE="):
+    status, body = _request(
+        "/internal/api/v1/security-mode", method="POST",
+        headers={"Authorization": f"Bearer {TOKEN}"}, data={"mode": mode},
+    )
+    applied_live = status == 200
+    if not applied_live:
+        print(f"[!] 서버({BASE_URL})에 반영 요청을 보냈지만 실패했습니다 (status={status}, {body[:200]}).")
+        print("    서버가 꺼져 있다면 .env 에만 기록해 두고, 다음 서버 기동 시에 적용됩니다.")
+        text = ENV_PATH.read_text(encoding="utf-8") if ENV_PATH.exists() else ""
+        lines = text.splitlines()
+        new_lines, sec_found, def_found = [], False, False
+        for line in lines:
+            if line.startswith("SECURITY_MODE="):
+                new_lines.append(f"SECURITY_MODE={mode}")
+                sec_found = True
+            elif line.startswith("DEFENSE_MODE="):
+                new_lines.append(f"DEFENSE_MODE={mode}")
+                def_found = True
+            else:
+                new_lines.append(line)
+        if not sec_found:
             new_lines.append(f"SECURITY_MODE={mode}")
-            sec_found = True
-        elif line.startswith("DEFENSE_MODE="):
+        if not def_found:
             new_lines.append(f"DEFENSE_MODE={mode}")
-            def_found = True
-        else:
-            new_lines.append(line)
-
-    if not sec_found:
-        new_lines.append(f"SECURITY_MODE={mode}")
-    if not def_found:
-        new_lines.append(f"DEFENSE_MODE={mode}")
-
-    ENV_PATH.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-    os.environ["SECURITY_MODE"] = mode
-    os.environ["DEFENSE_MODE"] = mode
+        ENV_PATH.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        os.environ["SECURITY_MODE"] = mode
+        os.environ["DEFENSE_MODE"] = mode
 
     print("=" * 65)
     if mode == "off":
-        print(" [OFF] [보안설정 전 (취약 상태)] 모드로 전환되었습니다!")
+        print(" [OFF] [보안설정 전 (취약 상태)] 모드로 전환되었습니다!" if applied_live else
+              " [OFF] .env 에만 기록됨 — 서버 재시작 전까지는 아직 적용 안 됨")
         print("  - 계정 락아웃(5회 제한) 비활성화 (무제한 대입 허용)")
         print("  - AI 프롬프트 인젝션 방어 필터 비활성화 (지침 탈취 허용)")
         print("  - IP 차단(Blacklist) 검사 우회 허용")
     else:
-        print(" [ON] [보안설정 후 (강화 상태)] 모드로 복원되었습니다!")
+        print(" [ON] [보안설정 후 (강화 상태)] 모드로 복원되었습니다!" if applied_live else
+              " [ON] .env 에만 기록됨 — 서버 재시작 전까지는 아직 적용 안 됨")
         print("  - 5회 실패 시 즉각 계정 잠금 & 잠금 후 재시도(R6) 감지 활성화")
         print("  - AI NeMo/정규식 3단계 인젝션 차단기(R2) 활성화")
         print("  - 디코이(허니팟) 탐침 및 능동 IP 차단 게이트 활성화")
+    print(" (지금 떠 있는 서버에 실제로 적용됨)" if applied_live else " (⚠️ 지금 떠 있는 서버에는 아직 적용되지 않았습니다)")
     print("=" * 65)
 
 
