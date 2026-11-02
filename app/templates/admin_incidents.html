@@ -1,33 +1,92 @@
 {% extends "base.html" %}
 {% block title %}보안 인시던트 · NEXUS SOC{% endblock %}
 {% block content %}
-<section class="sheet">
-  <h1>보안 인시던트</h1>
-  <p class="hint">기존 Ticket과 탐지·대응 이력을 조회하고 종결합니다. AI 분석과 차단 대응은 AI-XDR 화면에서 관리합니다.</p>
-  <p><a class="btn" href="{{ url_for('admin.xdr_assessments') }}">AI-XDR 판정 보기</a></p>
+<section class="incident-page incident-list-page" aria-labelledby="incident-page-title">
+  <header class="incident-page-header">
+    <div>
+      <p class="incident-eyebrow">SECURITY OPERATIONS</p>
+      <h1 id="incident-page-title">보안 인시던트</h1>
+      <p class="incident-intro">탐지된 사건과 AI 분석 결과, 처리 이력을 한곳에서 확인합니다.</p>
+    </div>
+    <a class="btn incident-secondary-action" href="{{ url_for('admin.xdr_assessments') }}">AI-XDR 판정 보기 <span aria-hidden="true">→</span></a>
+  </header>
+
   {% if unavailable %}
-    <p class="alert" role="alert">{% if ticket_api_unavailable %}n8n Ticket API에서 인시던트 목록을 불러올 수 없습니다. 잠시 후 다시 시도하거나 관리자에게 문의하세요.{% else %}인시던트 목록을 불러올 수 없습니다. 서버 로그를 확인하세요.{% endif %}</p>
+    <div class="incident-state incident-state-error" role="alert">
+      <strong>인시던트 목록을 불러오지 못했습니다</strong>
+      <p>{% if ticket_api_unavailable %}Ticket API에 연결할 수 없습니다. 잠시 후 다시 시도하거나 관리자에게 문의하세요.{% else %}서버 로그를 확인하세요.{% endif %}</p>
+    </div>
   {% elif incidents %}
-  {% if xdr_unavailable %}<p class="hint">AI-XDR 요약을 불러오지 못했습니다. Ticket 목록은 표시합니다.</p>{% endif %}
-  <div class="scroll">
-    <table class="audit">
-      <thead><tr><th>Ticket</th><th>상태</th><th>출발지 IP</th><th>Rule</th><th>이벤트</th><th>최근 AI 판정</th><th>최초 시각</th><th>최근 시각</th></tr></thead>
-      <tbody>
+    {% if xdr_unavailable %}<p class="incident-inline-notice" role="status">AI-XDR 요약을 불러오지 못했습니다. Ticket 목록은 계속 표시합니다.</p>{% endif %}
+
+    <div class="incident-overview" aria-label="인시던트 요약">
+      <div class="incident-overview-card">
+        <span>표시 중인 인시던트</span>
+        <strong>{{ incidents | length }}<small>건</small></strong>
+      </div>
+      <div class="incident-overview-card">
+        <span>AI-XDR 평가 연결</span>
+        <strong>{{ incidents | selectattr('latest_assessment') | list | length }}<small>건</small></strong>
+      </div>
+      <div class="incident-overview-card incident-overview-note">
+        <span>최근 갱신</span>
+        <strong>{{ incidents[0].last_seen or '—' }}</strong>
+      </div>
+    </div>
+
+    <div class="incident-list-heading">
+      <div><h2>최근 사건</h2><p>Ticket을 선택하면 탐지·분석·대응 이력을 볼 수 있습니다.</p></div>
+      <span>{{ incidents | length }}건</span>
+    </div>
+
+    <div class="incident-list" role="list">
       {% for incident in incidents %}
-        <tr>
-          <td><a href="{{ url_for('admin.incident_detail', ticket_db_id=incident.id) }}">{{ incident.display_id }}</a></td>
-          <td><span class="badge">{{ incident.status }}</span></td>
-          <td class="mono">{{ incident.src_ip or 'IP 없음' }}</td>
-          <td>{{ incident.rule_ids | join(', ') or '—' }}</td>
-          <td>{{ incident.event_count or 0 }}</td>
-          <td>{% if incident.latest_assessment %}{{ incident.latest_assessment.verdict }} · {{ incident.latest_assessment.threat_score }}/100{% else %}—{% endif %}</td>
-          <td>{{ incident.first_seen or '—' }}</td>
-          <td>{{ incident.last_seen or '—' }}</td>
-        </tr>
+      {% set status_label = {'open':'진행 중','in_progress':'처리 중','closed':'종결'}.get(incident.status, incident.status or '상태 미상') %}
+      <a class="incident-card" role="listitem" href="{{ url_for('admin.incident_detail', ticket_db_id=incident.id) }}">
+        <div class="incident-card-top">
+          <div class="incident-card-title">
+            <span class="incident-ticket-id">{{ incident.display_id }}</span>
+            <span class="incident-status{% if incident.status == 'closed' %} is-closed{% else %} is-open{% endif %}">{{ status_label }}</span>
+          </div>
+          <span class="incident-open-link">상세 보기 <span aria-hidden="true">→</span></span>
+        </div>
+
+        <div class="incident-card-main">
+          <div class="incident-card-field incident-card-source">
+            <span class="incident-field-label">출발지</span>
+            <strong class="incident-mono">{{ incident.src_ip or 'IP 미식별' }}</strong>
+          </div>
+          <div class="incident-card-field">
+            <span class="incident-field-label">탐지 Rule</span>
+            <strong aria-label="{{ incident.rule_ids | join(', ') or '관련 Rule 없음' }}">{% if incident.rule_ids %}{% for rule in incident.rule_ids %}<span class="incident-rule-chip">{{ rule }}</span>{% endfor %}{% else %}—{% endif %}</strong>
+          </div>
+          <div class="incident-card-field">
+            <span class="incident-field-label">탐지 이벤트</span>
+            <strong>{{ incident.event_count or 0 }}<small>건</small></strong>
+          </div>
+          <div class="incident-card-field incident-card-assessment">
+            <span class="incident-field-label">최근 AI-XDR 판정</span>
+            {% if incident.latest_assessment %}
+              {% set verdict = incident.latest_assessment.verdict %}
+              <strong class="incident-verdict{% if verdict == 'MALICIOUS' %} is-malicious{% elif verdict == 'BENIGN' %} is-benign{% else %} is-review{% endif %}">{{ {'MALICIOUS':'악성','BENIGN':'정상','SUSPICIOUS':'의심','REVIEW_REQUIRED':'검토 필요'}.get(verdict, verdict or '미평가') }}</strong>
+              <span class="incident-score">위험도 {{ incident.latest_assessment.threat_score or 0 }} / 100</span>
+            {% else %}<strong class="incident-muted">아직 평가되지 않음</strong>{% endif %}
+          </div>
+        </div>
+
+        <div class="incident-card-bottom">
+          <span>최초 {{ incident.first_seen or '—' }}</span>
+          <span>최근 {{ incident.last_seen or '—' }}</span>
+        </div>
+      </a>
       {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}<p class="hint">표시할 인시던트가 없습니다.</p>{% endif %}
+    </div>
+  {% else %}
+    <div class="incident-state incident-state-empty">
+      <span class="incident-empty-mark" aria-hidden="true">✓</span>
+      <h2>표시할 인시던트가 없습니다</h2>
+      <p>새 탐지 Ticket이 들어오면 이곳에 표시됩니다.</p>
+    </div>
+  {% endif %}
 </section>
 {% endblock %}
