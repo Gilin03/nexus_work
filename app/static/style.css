@@ -1785,6 +1785,30 @@ select[multiple] {
   background: #b91c1c;
 }
 
+.soc-mode-form {
+  display: inline;
+  margin: 0;
+}
+.soc-mode-active {
+  background: #059669;
+  border: 1px solid #10b981;
+  color: #ffffff;
+  cursor: pointer;
+}
+.soc-mode-active:hover {
+  background: #047857;
+}
+.soc-mode-inactive {
+  background: #dc2626;
+  border: 1px solid #ef4444;
+  color: #ffffff;
+  cursor: pointer;
+  animation: pulse 2s infinite;
+}
+.soc-mode-inactive:hover {
+  background: #b91c1c;
+}
+
 .soc-banner-meta {
   color: #94a3b8;
   font-size: 0.85rem;

@@ -68,8 +68,8 @@ class Config:
 
         # 보안 대시보드 SSE 스트림(/admin/audit/stream): 계정당 동시 연결 수·접속 시도 속도·
         # 최대 유지시간을 제한해 공유 스레드풀(Waitress) 고갈을 막는다(VULN-FINDINGS.md 2026-10-29 MEDIUM #3).
-        self.AUDIT_STREAM_MAX_CONCURRENT = 3       # 계정당 동시 연결 상한
-        self.AUDIT_STREAM_OPEN_LIMIT = 10          # 분당 연결 시도 상한(IP)
+        self.AUDIT_STREAM_MAX_CONCURRENT = 10      # 계정당 동시 연결 상한
+        self.AUDIT_STREAM_OPEN_LIMIT = 60          # 분당 연결 시도 상한(IP)
         self.AUDIT_STREAM_MAX_SECONDS = 600        # 연결 하나의 최대 유지시간(10분, 이후 클라이언트가 재연결)
 
         # 챗봇: 사용자당 분당 메시지 상한 및 무료 AI 모델 연동 설정

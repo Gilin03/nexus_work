@@ -405,13 +405,13 @@ def _resolve_model_target(config, provider_override=None):
     provider_setting = str(config.get("XDR_AI_PROVIDER", "auto")).strip().lower()
     provider = provider_override or provider_setting
     if provider == "auto":
-        # 우선순위: 1) Ollama (기본 추천 모델) -> 2) NVIDIA -> 3) Groq
-        if config.get("OLLAMA_BASE_URL"):
-            provider = "ollama"
+        # 우선순위: 1) Groq -> 2) NVIDIA -> 3) Ollama
+        if config.get("GROQ_API_KEY"):
+            provider = "groq"
         elif config.get("NVIDIA_API_KEY"):
             provider = "nvidia"
-        elif config.get("GROQ_API_KEY"):
-            provider = "groq"
+        elif config.get("OLLAMA_BASE_URL"):
+            provider = "ollama"
         else:
             provider = ""
     if provider in ("nvidia", "nim"):
@@ -551,7 +551,7 @@ def triage(summary, assessment_id):
 def _model_response(summary, assessment_id):
     cfg = current_app.config
     provider_setting = str(cfg.get("XDR_AI_PROVIDER", "auto")).strip().lower()
-    cascade = ["ollama", "nvidia", "groq"] if provider_setting == "auto" else [provider_setting]
+    cascade = ["groq", "nvidia", "ollama"] if provider_setting == "auto" else [provider_setting]
 
     payload = {
         "assessment_id": assessment_id,

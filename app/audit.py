@@ -262,6 +262,10 @@ def broadcast_audit_event(record: dict):
         # 화면 테이블 및 상세 패널에 필요한 표준 포맷으로 정리
         row = _shape(record)
         row["raw"] = json.dumps(record, ensure_ascii=False, indent=2)[:2000]
+        if "mode" in record:
+            row["mode"] = record["mode"]
+        if "action" in record:
+            row["action"] = record["action"]
 
         dead = []
         for q in _audit_subscribers:

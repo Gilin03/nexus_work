@@ -504,6 +504,10 @@ def _dashboard_page(f, period, limit, page, error=None, status=200):
 @bp.get("/audit")
 @permission_required("security.dashboard")
 def audit_log():
+    if request.args.get("format") == "json" or request.headers.get("Accept") == "application/json":
+        resp = jsonify({"security_mode": "on" if security.get_security_mode() else "off"})
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
     try:
         f, period, limit, page = _dashboard_args(request.args)
     except ValueError as exc:
@@ -575,12 +579,12 @@ def audit_stream():
                     yield b": stream_max_duration_reached\n\n"
                     return
                 try:
-                    event_data = q.get(timeout=15.0)
+                    event_data = q.get(timeout=2.0)
                     payload = json.dumps(event_data, ensure_ascii=False)
                     yield f"data: {payload}\n\n".encode("utf-8")
                 except queue.Empty:
                     yield b": keepalive\n\n"
-        except GeneratorExit:
+        except (GeneratorExit, BrokenPipeError, ConnectionResetError):
             pass
         finally:
             audit.unsubscribe_audit_events(q)

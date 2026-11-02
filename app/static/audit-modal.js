@@ -260,6 +260,13 @@
           var e = JSON.parse(event.data);
           if (!e || !e.event_type) return;
 
+          // 실시간 보안 모드 동기화 (어느 컴퓨터에서 변경해도 모든 화면의 버튼이 0.1초 만에 즉시 전환)
+          var isToggle = e.action === "toggle_security" || e.reason === "toggle_security" || (e.extra && e.extra.indexOf("toggle_security") !== -1);
+          if (isToggle) {
+            var isModeOn = e.mode === "on" || (e.extra && e.extra.indexOf("mode=on") !== -1);
+            updateSecurityModeUI(isModeOn);
+          }
+
           if (isPaused) {
             return;
           }
@@ -333,6 +340,41 @@
 
     // Start SSE stream
     initSSE();
+
+    // 3초 주기 및 탭 포커스 복귀 시 자동 백업 동기화
+    window.addEventListener("focus", syncSecurityMode);
+    document.addEventListener("visibilitychange", syncSecurityMode);
+    setInterval(syncSecurityMode, 3000);
+  }
+
+  function syncSecurityMode() {
+    if (document.visibilityState === "visible") {
+      fetch("/admin/audit?format=json")
+        .then(function (res) {
+          if (res.ok) return res.json();
+          throw new Error("status " + res.status);
+        })
+        .then(function (data) {
+          if (data && data.security_mode) {
+            updateSecurityModeUI(data.security_mode === "on");
+          }
+        })
+        .catch(function () {});
+    }
+  }
+
+  function updateSecurityModeUI(isActive) {
+    var btn = document.getElementById("security-mode-btn");
+    if (!btn) return;
+    if (isActive) {
+      btn.className = "soc-btn soc-mode-active";
+      btn.textContent = "🟢 방어 모드 ACTIVE";
+      btn.title = "클릭 시 취약 모드로 전환 (시연용)";
+    } else {
+      btn.className = "soc-btn soc-mode-inactive";
+      btn.textContent = "🔴 취약 모드 INACTIVE";
+      btn.title = "클릭 시 방어 모드로 복원";
+    }
   }
 
   document.addEventListener("click", function (e) {
