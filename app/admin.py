@@ -752,10 +752,24 @@ def _log_incident_database_exception(exc, operation="incident_list"):
 def incidents_list():
     try:
         rows = incidents.list_tickets()
+    except incidents.TicketAPIError as exc:
+        request_id = getattr(g, "nexus_request_id", None) or "unknown"
+        log_event("incident_list", "ERROR", exc.reason, http_status=exc.status_code)
+        current_app.logger.warning(
+            "incident_ticket_api_failure request_id=%s operation=incident_list reason=%s http_status=%s",
+            request_id, exc.reason, exc.status_code or "none",
+        )
+        return render_template(
+            "admin_incidents.html", incidents=[], unavailable=True,
+            ticket_api_unavailable=True, xdr_unavailable=False,
+        )
     except pymysql.MySQLError as exc:
         log_event("incident_list", "ERROR", type(exc).__name__)
         _log_incident_database_exception(exc, "incident_list")
-        return render_template("admin_incidents.html", incidents=[], unavailable=True, xdr_unavailable=False)
+        return render_template(
+            "admin_incidents.html", incidents=[], unavailable=True,
+            ticket_api_unavailable=False, xdr_unavailable=False,
+        )
     for row in rows:
         row["display_id"] = row.get("display_id") or incidents.display_ticket_id(row["id"])
     xdr_unavailable = False
@@ -774,6 +788,15 @@ def incidents_list():
 def incident_detail(ticket_db_id):
     try:
         ticket = incidents.get_ticket(ticket_db_id)
+    except incidents.TicketAPIError as exc:
+        request_id = getattr(g, "nexus_request_id", None) or "unknown"
+        log_event("incident_detail", "ERROR", exc.reason,
+                  ticket_id=incidents.display_ticket_id(ticket_db_id), http_status=exc.status_code)
+        current_app.logger.warning(
+            "incident_ticket_api_failure request_id=%s operation=incident_detail reason=%s http_status=%s",
+            request_id, exc.reason, exc.status_code or "none",
+        )
+        abort(503)
     except pymysql.MySQLError as exc:
         log_event("incident_detail", "ERROR", type(exc).__name__,
                   ticket_id=incidents.display_ticket_id(ticket_db_id))
@@ -786,7 +809,7 @@ def incident_detail(ticket_db_id):
     xdr_unavailable = False
     if current_app.config.get("XDR_ENABLED"):
         try:
-            assessments = incidents.assessments_for_ticket(ticket_db_id)
+            assessments = incidents.assessments_for_ticket(ticket_db_id, ticket.get("display_id"))
         except pymysql.MySQLError as exc:
             log_event("incident_xdr_detail", "ERROR", type(exc).__name__,
                       ticket_id=incidents.display_ticket_id(ticket_db_id))
@@ -811,6 +834,15 @@ def incident_close(ticket_db_id):
         )
     except LookupError:
         abort(404)
+    except incidents.TicketAPIError as exc:
+        request_id = getattr(g, "nexus_request_id", None) or "unknown"
+        log_event("incident_close", "ERROR", exc.reason,
+                  ticket_id=incidents.display_ticket_id(ticket_db_id), http_status=exc.status_code)
+        current_app.logger.warning(
+            "incident_ticket_api_failure request_id=%s operation=incident_close reason=%s http_status=%s",
+            request_id, exc.reason, exc.status_code or "none",
+        )
+        abort(409 if exc.status_code == 409 else 503)
     except (RuntimeError, pymysql.MySQLError) as exc:
         log_event("incident_close", "ERROR", type(exc).__name__,
                   ticket_id=incidents.display_ticket_id(ticket_db_id))
