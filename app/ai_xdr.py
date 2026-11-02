@@ -401,14 +401,22 @@ def _model_input(summary, actor_secret):
     return result
 
 
-def _resolve_model_target(config):
+def _resolve_model_target(config, provider_override=None):
     provider_setting = str(config.get("XDR_AI_PROVIDER", "auto")).strip().lower()
-    provider = provider_setting
+    provider = provider_override or provider_setting
     if provider == "auto":
-        provider = "nvidia" if config.get("NVIDIA_API_KEY") else ("groq" if config.get("GROQ_API_KEY") else ("ollama" if config.get("OLLAMA_BASE_URL") else ""))
+        # 우선순위: 1) Ollama (기본 추천 모델) -> 2) NVIDIA -> 3) Groq
+        if config.get("OLLAMA_BASE_URL"):
+            provider = "ollama"
+        elif config.get("NVIDIA_API_KEY"):
+            provider = "nvidia"
+        elif config.get("GROQ_API_KEY"):
+            provider = "groq"
+        else:
+            provider = ""
     if provider in ("nvidia", "nim"):
         return {"provider": "nvidia", "provider_setting": provider_setting,
-                "model": config.get("NVIDIA_MODEL", "minimaxai/minimax-m3.1-flash"),
+                "model": config.get("NVIDIA_MODEL", "poolside/laguna-xs-2.1"),
                 "endpoint": str(config.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")).rstrip("/") + "/chat/completions"}
     if provider == "groq":
         return {"provider": "groq", "provider_setting": provider_setting,
@@ -542,10 +550,9 @@ def triage(summary, assessment_id):
 
 def _model_response(summary, assessment_id):
     cfg = current_app.config
-    target = _resolve_model_target(cfg)
-    provider = target["provider"]
-    model_name = target["model"]
-    endpoint = target["endpoint"]
+    provider_setting = str(cfg.get("XDR_AI_PROVIDER", "auto")).strip().lower()
+    cascade = ["ollama", "nvidia", "groq"] if provider_setting == "auto" else [provider_setting]
+
     payload = {
         "assessment_id": assessment_id,
         "threat_score": "integer 0..100",
@@ -563,54 +570,70 @@ def _model_response(summary, assessment_id):
     )
     user_text = json.dumps(_model_input(summary, cfg.get("SECRET_KEY", "")), ensure_ascii=False, separators=(",", ":"))
     timeout = max(1, min(int(cfg.get("XDR_AI_TIMEOUT", 30) or 30), 120))
-    if provider == "nvidia":
-        key = cfg.get("NVIDIA_API_KEY") or ""
-        if not key:
-            raise RuntimeError("provider_unavailable")
-        response_json = _post_provider_json(
-            endpoint,
-            {
-                "model": model_name,
-                "messages": [{"role": "system", "content": system_text}, {"role": "user", "content": user_text}],
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-            },
-            {"Authorization": "Bearer " + key}, timeout,
-        )
-        return response_json["choices"][0]["message"]["content"]
-    if provider == "groq":
-        key = cfg.get("GROQ_API_KEY") or ""
-        if not key:
-            raise RuntimeError("provider_unavailable")
-        response_json = _post_provider_json(
-            endpoint,
-            {
-                "model": model_name,
-                "messages": [{"role": "system", "content": system_text}, {"role": "user", "content": user_text}],
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-            },
-            {"Authorization": "Bearer " + key}, timeout,
-        )
-        return response_json["choices"][0]["message"]["content"]
-    if provider == "ollama":
-        base_url = str(cfg.get("OLLAMA_BASE_URL", "")).rstrip("/")
-        if not base_url:
-            raise RuntimeError("provider_unavailable")
-        request_body = json.dumps({
-            "model": model_name,
-            "messages": [{"role": "system", "content": system_text}, {"role": "user", "content": user_text}],
-            "stream": False,
-            "format": "json",
-            "options": {"temperature": 0},
-        }).encode("utf-8")
-        request = urllib.request.Request(endpoint, data=request_body,
-                                         headers={"Content-Type": "application/json"}, method="POST")
-        _mark_provider_request(attempted=True)
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            _mark_provider_request(response_received=True, http_status=getattr(response, "status", 200))
-            response_json = json.loads(response.read().decode("utf-8"))
-        return response_json["message"]["content"]
+
+    last_exc = None
+    for prov in cascade:
+        target = _resolve_model_target(cfg, provider_override=prov)
+        provider = target["provider"]
+        model_name = target["model"]
+        endpoint = target["endpoint"]
+        if not provider or not endpoint:
+            continue
+        try:
+            if provider == "nvidia":
+                key = cfg.get("NVIDIA_API_KEY") or ""
+                if not key:
+                    raise RuntimeError("provider_unavailable")
+                response_json = _post_provider_json(
+                    endpoint,
+                    {
+                        "model": model_name,
+                        "messages": [{"role": "system", "content": system_text}, {"role": "user", "content": user_text}],
+                        "temperature": 0,
+                    },
+                    {"Authorization": "Bearer " + key}, timeout,
+                )
+                return response_json["choices"][0]["message"]["content"]
+            if provider == "groq":
+                key = cfg.get("GROQ_API_KEY") or ""
+                if not key:
+                    raise RuntimeError("provider_unavailable")
+                response_json = _post_provider_json(
+                    endpoint,
+                    {
+                        "model": model_name,
+                        "messages": [{"role": "system", "content": system_text}, {"role": "user", "content": user_text}],
+                        "temperature": 0,
+                        "response_format": {"type": "json_object"},
+                    },
+                    {"Authorization": "Bearer " + key}, timeout,
+                )
+                return response_json["choices"][0]["message"]["content"]
+            if provider == "ollama":
+                base_url = str(cfg.get("OLLAMA_BASE_URL", "")).rstrip("/")
+                if not base_url:
+                    raise RuntimeError("provider_unavailable")
+                request_body = json.dumps({
+                    "model": model_name,
+                    "messages": [{"role": "system", "content": system_text}, {"role": "user", "content": user_text}],
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0},
+                }).encode("utf-8")
+                request = urllib.request.Request(endpoint, data=request_body,
+                                                 headers={"Content-Type": "application/json"}, method="POST")
+                _mark_provider_request(attempted=True)
+                with urllib.request.urlopen(request, timeout=timeout) as response:
+                    _mark_provider_request(response_received=True, http_status=getattr(response, "status", 200))
+                    response_json = json.loads(response.read().decode("utf-8"))
+                return response_json["message"]["content"]
+        except Exception as exc:
+            last_exc = exc
+            if provider_setting != "auto":
+                raise
+            continue
+    if last_exc:
+        raise last_exc
     raise RuntimeError("provider_unavailable")
 
 

@@ -584,14 +584,14 @@ def resolve_provider(cfg: dict, choice: str | None = None) -> str:
     cfg = _effective_cfg(cfg)
     provider = (choice or selected_choice(cfg) or "placeholder").strip().lower()
     if provider == "auto":
-        if cfg.get("NVIDIA_API_KEY"):
-            return "nvidia"
-        if cfg.get("GEMINI_API_KEY"):
-            return "gemini"
-        if cfg.get("GROQ_API_KEY"):
-            return "groq"
         if cfg.get("OLLAMA_BASE_URL"):
             return "ollama"
+        if cfg.get("NVIDIA_API_KEY"):
+            return "nvidia"
+        if cfg.get("GROQ_API_KEY"):
+            return "groq"
+        if cfg.get("GEMINI_API_KEY"):
+            return "gemini"
         return "builtin"
     return provider
 
@@ -683,7 +683,40 @@ def ai_responder(user: dict, message: str, history: list[dict]) -> str:
         sys_text, msgs = _build_messages(context, history, message)
 
     reply = ""
-    if provider == "gemini":
+    if choice == "auto":
+        for p in ("ollama", "nvidia", "groq", "builtin"):
+            try:
+                if p == "ollama" and cfg.get("OLLAMA_BASE_URL"):
+                    reply = _call_ollama(
+                        cfg.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+                        cfg.get("OLLAMA_MODEL", "qwen2.5:7b"),
+                        msgs,
+                        max(timeout, OLLAMA_MIN_TIMEOUT),
+                    )
+                elif p == "nvidia" and cfg.get("NVIDIA_API_KEY"):
+                    reply = _call_nvidia(
+                        cfg.get("NVIDIA_API_KEY"),
+                        cfg.get("NVIDIA_MODEL", "poolside/laguna-xs-2.1"),
+                        msgs,
+                        timeout,
+                        base_url=cfg.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+                    )
+                elif p == "groq" and cfg.get("GROQ_API_KEY"):
+                    reply = _call_groq(
+                        cfg.get("GROQ_API_KEY"),
+                        cfg.get("GROQ_MODEL", "openai/gpt-oss-120b"),
+                        msgs,
+                        timeout,
+                    )
+                elif p == "builtin":
+                    reply = _local_smart_fallback(user, message, context)
+                if reply:
+                    break
+            except Exception:
+                continue
+        if not reply:
+            reply = _local_smart_fallback(user, message, context)
+    elif provider == "gemini":
         cred = cfg.get("GEMINI_API_KEY", "")
         if not cred:
             raise RuntimeError("GEMINI_API_KEY 가 설정되지 않았습니다.")
