@@ -129,10 +129,24 @@ def test_different_ips_do_not_share_aggregation_window():
     assert first["window_key"] == same_ip["window_key"]
 
 
+def test_default_aggregation_window_is_one_minute():
+    first = ai_xdr.normalize_event_payload(
+        payload(alert_id="alert-minute-1"),
+        received_at=datetime(2026, 10, 26, 1, 1, 10, tzinfo=timezone.utc),
+    )
+    second = ai_xdr.normalize_event_payload(
+        payload(alert_id="alert-minute-2"),
+        received_at=datetime(2026, 10, 26, 1, 2, 10, tzinfo=timezone.utc),
+    )
+
+    assert first["window_start"] != second["window_start"]
+    assert first["window_key"] != second["window_key"]
+
+
 def test_triage_window_is_bounded_and_invalid_setting_uses_default():
     assert ai_xdr._triage_window_seconds(-10) == 60
     assert ai_xdr._triage_window_seconds(3600) == 900
-    assert ai_xdr._triage_window_seconds("invalid") == 180
+    assert ai_xdr._triage_window_seconds("invalid") == 60
 
 
 def test_aggregate_events_keeps_counts_and_metadata_without_raw_content():
