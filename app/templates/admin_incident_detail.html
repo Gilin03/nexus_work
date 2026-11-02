@@ -1,68 +1,123 @@
 {% extends "base.html" %}
 {% block title %}{{ incident.display_id }} · 보안 인시던트{% endblock %}
 {% block content %}
-<section class="sheet">
-  <p><a href="{{ url_for('admin.incidents_list') }}">← 인시던트 목록</a></p>
-  <h1>{{ incident.display_id }}</h1>
-  {% if result == 'closed' %}<p class="notice" role="status">인시던트를 종결했습니다.</p>{% elif result == 'already_closed' %}<p class="notice" role="status">이미 종결된 인시던트입니다. 기존 기록을 유지했습니다.</p>{% endif %}
+<section class="incident-page incident-detail-page" aria-labelledby="incident-page-title">
+  <a class="incident-back-link" href="{{ url_for('admin.incidents_list') }}"><span aria-hidden="true">←</span> 인시던트 목록</a>
 
-  <h2>사건 정보</h2>
-  <div class="scroll"><table class="audit"><tbody>
-    <tr><th>상태</th><td>{{ incident.status }}</td><th>출발지 IP</th><td class="mono">{{ incident.src_ip or '—' }}</td></tr>
-    <tr><th>관련 계정</th><td>{{ incident.user_names | join(', ') or '—' }}</td><th>Rule</th><td>{{ incident.rule_ids | join(', ') or '—' }}</td></tr>
-    <tr><th>이벤트 수</th><td>{{ incident.event_count or 0 }}</td><th>최초 / 최근</th><td>{{ incident.first_seen or '—' }} / {{ incident.last_seen or '—' }}</td></tr>
-    {% if incident.resolution or incident.closed_at or incident.note %}<tr><th>종결 결과</th><td>{{ {'resolved':'조치 완료','false_positive':'오탐','other':'기타'}.get(incident.resolution, incident.resolution or '—') }}</td><th>종결 시각</th><td>{{ incident.closed_at or '—' }}</td></tr><tr><th>종결 메모</th><td colspan="3">{{ incident.note or '—' }}</td></tr>{% endif %}
-  </tbody></table></div>
+  <header class="incident-detail-header">
+    <div class="incident-detail-heading">
+      <p class="incident-eyebrow">INCIDENT DETAIL</p>
+      <div class="incident-detail-title-row">
+        <h1 id="incident-page-title">{{ incident.display_id }}</h1>
+        <span class="incident-status{% if incident.status == 'closed' %} is-closed{% else %} is-open{% endif %}">{{ {'open':'진행 중','in_progress':'처리 중','closed':'종결'}.get(incident.status, incident.status or '상태 미상') }}</span>
+      </div>
+      <p class="incident-intro">사건의 탐지 근거와 분석·대응 이력을 확인합니다.</p>
+    </div>
+    <a class="btn incident-secondary-action" href="{{ url_for('admin.xdr_assessments') }}">AI-XDR 판정 보기 <span aria-hidden="true">→</span></a>
+  </header>
 
-  <h2>탐지 이력</h2>
-  {% if incident.alerts %}
-  <div class="scroll"><table class="audit">
-    <thead><tr><th>발생 시각</th><th>Rule</th><th>이벤트</th><th>계정</th><th>출발지 IP</th><th>건수</th></tr></thead>
-    <tbody>{% for alert in incident.alerts %}<tr>
-      <td>{{ alert.occurred_at or alert.timestamp or '—' }}</td><td>{{ alert.rule_id or '—' }}</td><td>{{ alert.event_type or '—' }}</td>
-      <td>{{ alert.user or '—' }}</td><td class="mono">{{ alert.src_ip or '—' }}</td><td>{{ alert.event_count or 1 }}</td>
-    </tr>{% endfor %}</tbody>
-  </table></div>
-  {% else %}<p class="hint">기록된 탐지 이력이 없습니다.</p>{% endif %}
+  {% if result == 'closed' %}<p class="incident-inline-notice" role="status">인시던트를 종결했습니다.</p>{% elif result == 'already_closed' %}<p class="incident-inline-notice" role="status">이미 종결된 인시던트입니다. 기존 기록을 유지했습니다.</p>{% endif %}
 
-  <h2>AI-XDR 분석 요약</h2>
-  {% if xdr_unavailable %}<p class="alert" role="alert">AI-XDR 분석 저장소를 읽을 수 없습니다.</p>
-  {% elif assessments %}
-  <div class="scroll"><table class="audit">
-    <thead><tr><th>시각</th><th>Assessment</th><th>Verdict</th><th>점수 / 신뢰도</th><th>권고</th><th>정책 / 응답</th><th>상태</th><th></th></tr></thead>
-    <tbody>{% for assessment in assessments %}<tr>
-      <td>{{ assessment.created_at or '—' }}</td><td class="mono">{{ assessment.assessment_id }}</td><td>{{ assessment.verdict }}</td>
-      <td>{{ assessment.threat_score }}/100 · {{ '%.0f'|format((assessment.confidence or 0) * 100) }}%</td>
-      <td>{{ assessment.recommended_actions | join(', ') or '—' }}</td>
-      {% set response_result = assessment.get('response_result') or {} %}
-      <td>{{ assessment.policy_reason or '—' }}{% if response_result.get('reason') %}<br>응답: {{ response_result.get('reason') }}{% endif %}</td>
-      <td>{{ assessment.status }}</td>
-      <td><a href="{{ url_for('admin.xdr_assessments') }}">AI-XDR에서 보기</a></td>
-    </tr>{% endfor %}</tbody>
-  </table></div>
-  {% else %}<p class="hint">연결된 AI-XDR 평가가 없습니다.</p>{% endif %}
+  <section class="incident-summary-panel" aria-labelledby="incident-summary-title">
+    <div class="incident-section-heading"><div><p class="incident-eyebrow">OVERVIEW</p><h2 id="incident-summary-title">사건 요약</h2></div></div>
+    <div class="incident-summary-grid">
+      <div class="incident-summary-item"><span>출발지 IP</span><strong class="incident-mono">{{ incident.src_ip or 'IP 미식별' }}</strong></div>
+      <div class="incident-summary-item"><span>관련 계정</span><strong>{{ incident.user_names | join(', ') or '—' }}</strong></div>
+      <div class="incident-summary-item"><span>탐지 Rule</span><strong>{% for rule in incident.rule_ids %}<span class="incident-rule-chip">{{ rule }}</span>{% else %}—{% endfor %}</strong></div>
+      <div class="incident-summary-item"><span>탐지 이벤트</span><strong>{{ incident.event_count or 0 }}건</strong></div>
+    </div>
+    {% if incident.resolution or incident.closed_at or incident.note %}
+    <div class="incident-closure-summary">
+      <span class="incident-status is-closed">{{ {'resolved':'조치 완료','false_positive':'오탐','other':'기타'}.get(incident.resolution, incident.resolution or '종결') }}</span>
+      <span>종결 시각 · {{ incident.closed_at or '—' }}</span>
+      {% if incident.note %}<p>{{ incident.note }}</p>{% endif %}
+    </div>
+    {% endif %}
+    <div class="incident-time-range"><span>최초 탐지 <strong>{{ incident.first_seen or '—' }}</strong></span><span>최근 탐지 <strong>{{ incident.last_seen or '—' }}</strong></span></div>
+  </section>
 
-  <h2>대응 이력</h2>
-  {% if incident.responses %}
-  <ul>{% for item in incident.responses %}
-    <li>{{ item.time or item.created_at or item.timestamp or '시각 미기록' }} · {{ {'resolved':'조치 완료','false_positive':'오탐','other':'기타','auto_block':'AI-XDR 야간 자동 차단'}.get(item.resolution, {'auto_block':'AI-XDR 야간 자동 차단'}.get(item.action, item.action or item.type or item.status or '대응 기록')) }}{% if item.src_ip %} · {{ item.src_ip }}{% endif %}{% if item.status %} · {{ {'success':'성공','failure':'실패','skipped':'건너뜀'}.get(item.status, item.status) }}{% endif %}{% if item.actor %} · {{ item.actor }}{% endif %}{% if item.note %}<br>{{ item.note }}{% endif %}{% if item.result %}<br>{{ {'blocked_ips_registered':'차단 목록에 15분 등록','block_registration_failed':'차단 목록 등록 실패','automatic_block_skipped':'중복 또는 확인 오류로 자동 차단 건너뜀'}.get(item.result, item.result) }}{% endif %}{% if item.policy_reason %}<br>정책: {{ item.policy_reason }}{% endif %}{% if item.ticket_id %}<br>Ticket: {{ item.ticket_id }}{% endif %}</li>
-  {% endfor %}</ul>
-  {% else %}<p class="hint">대응 기록이 없습니다.</p>{% endif %}
+  <div class="incident-detail-columns">
+    <section class="incident-panel" aria-labelledby="incident-detections-title">
+      <div class="incident-section-heading"><div><p class="incident-eyebrow">DETECTION HISTORY</p><h2 id="incident-detections-title">탐지 이력</h2></div><span class="incident-section-count">{{ incident.alerts | length }}건</span></div>
+      {% if incident.alerts %}
+      <ol class="incident-timeline">
+        {% for alert in incident.alerts %}
+        <li class="incident-timeline-item">
+          <span class="incident-timeline-dot" aria-hidden="true"></span>
+          <div class="incident-timeline-card">
+            <div class="incident-timeline-top"><time>{{ alert.occurred_at or alert.timestamp or '시각 미기록' }}</time><span class="incident-rule-chip">{{ alert.rule_id or 'Rule 미상' }}</span></div>
+            <strong class="incident-event-name">{{ alert.event_type or '이벤트 미상' }}</strong>
+            <div class="incident-event-meta"><span>계정 <strong>{{ alert.user or '—' }}</strong></span><span>출발지 <strong class="incident-mono">{{ alert.src_ip or '—' }}</strong></span><span>건수 <strong>{{ alert.event_count or 1 }}</strong></span></div>
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}<p class="incident-empty-inline">기록된 탐지 이력이 없습니다.</p>{% endif %}
+    </section>
+
+    <section class="incident-panel incident-assessments-panel" aria-labelledby="incident-assessments-title">
+      <div class="incident-section-heading"><div><p class="incident-eyebrow">AI-XDR</p><h2 id="incident-assessments-title">분석 결과</h2></div><span class="incident-section-count">{{ assessments | length }}건</span></div>
+      {% if xdr_unavailable %}<p class="incident-inline-notice" role="alert">AI-XDR 분석 저장소를 읽을 수 없습니다.</p>
+      {% elif assessments %}
+      <div class="incident-assessment-list">
+        {% for assessment in assessments %}
+        {% set verdict = assessment.verdict %}
+        {% set response_result = assessment.get('response_result') or {} %}
+        <article class="incident-assessment-card">
+          <div class="incident-assessment-top">
+            <div><span class="incident-field-label">판정</span><strong class="incident-verdict{% if verdict == 'MALICIOUS' %} is-malicious{% elif verdict == 'BENIGN' %} is-benign{% else %} is-review{% endif %}">{{ {'MALICIOUS':'악성','BENIGN':'정상','SUSPICIOUS':'의심','REVIEW_REQUIRED':'검토 필요'}.get(verdict, verdict or '미평가') }}</strong></div>
+            <span class="incident-status{% if assessment.status == 'APPROVED' %} is-approved{% elif assessment.status in ('PENDING','AUTO_BLOCKED') %} is-pending{% else %} is-neutral{% endif %}">{{ {'PENDING':'승인 대기','APPROVED':'승인 완료','AUTO_BLOCKED':'자동 대응','NO_ACTION':'조치 없음','REVIEW_REQUIRED':'검토 필요'}.get(assessment.status, assessment.status or '상태 미상') }}</span>
+          </div>
+          <div class="incident-assessment-metrics"><div><span>위험도</span><strong>{{ assessment.threat_score or 0 }}<small>/100</small></strong></div><div><span>신뢰도</span><strong>{{ '%.0f'|format((assessment.confidence or 0) * 100) }}<small>%</small></strong></div></div>
+          <div class="incident-assessment-field"><span class="incident-field-label">권고 조치</span><div class="incident-tag-list">{% for action in assessment.recommended_actions %}<span>{{ action }}</span>{% else %}<span class="incident-muted">없음</span>{% endfor %}</div></div>
+          <div class="incident-assessment-field"><span class="incident-field-label">정책 사유</span><code>{{ assessment.policy_reason or '—' }}</code></div>
+          {% if response_result.get('reason') %}<div class="incident-assessment-field"><span class="incident-field-label">응답 결과</span><code>{{ response_result.get('reason') }}</code></div>{% endif %}
+          <div class="incident-assessment-footer"><time>{{ assessment.created_at or '시각 미기록' }}</time><a href="{{ url_for('admin.xdr_assessments') }}">AI-XDR에서 보기 <span aria-hidden="true">→</span></a></div>
+          <span class="incident-assessment-id">Assessment · {{ assessment.assessment_id }}</span>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}<p class="incident-empty-inline">연결된 AI-XDR 평가가 없습니다.</p>{% endif %}
+    </section>
+  </div>
+
+  <section class="incident-panel incident-response-panel" aria-labelledby="incident-responses-title">
+    <div class="incident-section-heading"><div><p class="incident-eyebrow">RESPONSE LOG</p><h2 id="incident-responses-title">대응 이력</h2></div><span class="incident-section-count">{{ incident.responses | length }}건</span></div>
+    {% if incident.responses %}
+    <ol class="incident-response-list">
+      {% for item in incident.responses %}
+      <li class="incident-response-item">
+        <span class="incident-response-mark{% if item.status == 'success' %} is-success{% elif item.status == 'failure' %} is-failure{% elif item.status == 'skipped' %} is-skipped{% endif %}" aria-hidden="true">{% if item.status == 'success' %}✓{% elif item.status == 'failure' %}!{% elif item.status == 'skipped' %}–{% else %}·{% endif %}</span>
+        <div class="incident-response-content">
+          <div class="incident-response-title"><strong>{{ {'resolved':'조치 완료','false_positive':'오탐','other':'기타','auto_block':'AI-XDR 야간 자동 차단'}.get(item.resolution, {'auto_block':'AI-XDR 야간 자동 차단'}.get(item.action, item.action or item.type or item.status or '대응 기록')) }}</strong><span class="incident-response-status{% if item.status == 'success' %} is-success{% elif item.status == 'failure' %} is-failure{% endif %}">{{ {'success':'성공','failure':'실패','skipped':'건너뜀'}.get(item.status, item.status or '') }}</span></div>
+          <p>{{ item.time or item.created_at or item.timestamp or '시각 미기록' }}{% if item.src_ip %} · <span class="incident-mono">{{ item.src_ip }}</span>{% endif %}{% if item.actor %} · {{ item.actor }}{% endif %}</p>
+          {% if item.note %}<p class="incident-response-note">{{ item.note }}</p>{% endif %}
+          {% if item.result %}<p class="incident-response-note">{{ {'blocked_ips_registered':'차단 목록에 15분 등록','block_registration_failed':'차단 목록 등록 실패','automatic_block_skipped':'중복 또는 확인 오류로 자동 차단 건너뜀'}.get(item.result, item.result) }}</p>{% endif %}
+          {% if item.policy_reason %}<p class="incident-response-note">정책 · {{ item.policy_reason }}</p>{% endif %}
+          {% if item.ticket_id %}<p class="incident-response-note">Ticket · {{ item.ticket_id }}</p>{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}<p class="incident-empty-inline">대응 기록이 없습니다.</p>{% endif %}
+  </section>
 
   {% if incident.status != 'closed' %}
-  <h2>인시던트 종결</h2>
-  <form method="post" action="{{ url_for('admin.incident_close', ticket_db_id=incident.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="resolution">처리 결과</label>
-    <select id="resolution" name="resolution" required>
-      <option value="resolved">조치 완료</option>
-      <option value="false_positive">오탐</option>
-      <option value="other">기타</option>
-    </select>
-    <label for="note">메모 (선택)</label>
-    <textarea id="note" name="note" maxlength="500" rows="3"></textarea>
-    <button class="btn primary" type="submit">인시던트 종결</button>
-  </form>
+  <section class="incident-close-panel" aria-labelledby="incident-close-title">
+    <div><p class="incident-eyebrow">CASE MANAGEMENT</p><h2 id="incident-close-title">인시던트 종결</h2><p>처리 결과와 필요한 메모를 남기고 사건을 종결합니다.</p></div>
+    <form class="incident-close-form" method="post" action="{{ url_for('admin.incident_close', ticket_db_id=incident.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="incident-form-fields">
+        <label for="resolution">처리 결과
+          <select id="resolution" name="resolution" required><option value="resolved">조치 완료</option><option value="false_positive">오탐</option><option value="other">기타</option></select>
+        </label>
+        <label class="incident-note-field" for="note">메모 <span>(선택)</span>
+          <textarea id="note" name="note" maxlength="500" rows="3" placeholder="종결 사유나 전달할 내용을 입력하세요"></textarea>
+        </label>
+      </div>
+      <button class="btn primary" type="submit">인시던트 종결</button>
+    </form>
+  </section>
   {% endif %}
 </section>
 {% endblock %}

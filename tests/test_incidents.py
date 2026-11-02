@@ -85,6 +85,52 @@ def test_incident_list_uses_n8n_ticket_api_and_matches_assessment_by_ticket_key(
     response = client.get("/admin/incidents")
     html = response.get_data(as_text=True)
 
+    assert response.status_code == 200
+    assert 'class="incident-page incident-list-page"' in html
+    assert 'class="incident-overview"' in html
+    assert 'class="incident-card"' in html
+    assert "NX-DB-000086" in html
+    assert "R3, R8" in html
+    assert "정상" in html
+
+
+def test_incident_detail_renders_distinct_summary_timeline_assessment_and_response_sections(aapp, monkeypatch):
+    aapp.config["XDR_ENABLED"] = True
+    _configure_ticket_api(aapp)
+    client = as_user(aapp, "zz_sec")
+    ticket = _api_ticket()
+    ticket["responses"] = [{
+        "action": "block_ip", "status": "failure", "result": "block_registration_failed",
+    }]
+
+    monkeypatch.setattr(
+        urllib.request, "urlopen",
+        lambda *_args, **_kwargs: _ApiResponse({"ticket": ticket, "alerts": [{
+            "occurred_at": "2026-10-30 01:05:00", "rule_id": "R8", "event_type": "not_found",
+            "user": "analyst", "src_ip": "192.0.2.10", "event_count": 2,
+        }]}),
+    )
+    monkeypatch.setattr(incidents, "assessments_for_ticket", lambda *_args: [{
+        "assessment_id": "assessment-86", "created_at": "2026-10-30 01:06:00",
+        "verdict": "BENIGN", "threat_score": 12, "confidence": 0.9,
+        "recommended_actions": ["notify_only"], "policy_reason": "NO_ACTION",
+        "status": "NO_ACTION", "response_result": {"reason": "dry_run"},
+    }])
+
+    response = client.get("/admin/incidents/86")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'class="incident-page incident-detail-page"' in html
+    assert 'class="incident-summary-grid"' in html
+    assert 'class="incident-timeline"' in html
+    assert 'class="incident-assessment-card"' in html
+    assert 'class="incident-response-list"' in html
+    assert 'class="incident-response-mark is-failure"' in html
+    assert "NX-DB-000086" in html
+    assert "assessment-86" in html
+    assert "dry_run" in html
+
 
 
 
