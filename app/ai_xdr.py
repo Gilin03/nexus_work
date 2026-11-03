@@ -828,11 +828,6 @@ def process_ready_windows(limit=1, now=None):
         (seconds, max(1, min(int(limit), 5))),
     )
     completed = []
-    if not windows:
-        security.log_xdr_process_debug(
-            selected_window_key="none", selected_window_start="none", event_rows_count=0,
-            assessment_insert_affected_rows="not_attempted", reason="no_ready_window",
-        )
     for window in windows:
         window_key = str(window["window_key"])
         rows = db.query_all(
