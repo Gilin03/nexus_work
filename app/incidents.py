@@ -193,16 +193,68 @@ def _api_alerts(raw_alerts, ticket):
 
 def list_tickets(limit=500):
     limit = max(1, min(int(limit), 500))
-    result = _ticket_api_request("GET", current_app.config.get("N8N_TICKETS_URL"))
-    rows = _api_ticket_rows(result)
-    tickets = [_decode_ticket(row) for row in rows[:limit] if isinstance(row, dict)]
-    return [ticket for ticket in tickets if ticket]
+    n8n_tickets = []
+    try:
+        result = _ticket_api_request("GET", current_app.config.get("N8N_TICKETS_URL"))
+        rows = _api_ticket_rows(result)
+        n8n_tickets = [_decode_ticket(row) for row in rows[:limit] if isinstance(row, dict)]
+        n8n_tickets = [ticket for ticket in n8n_tickets if ticket]
+    except Exception as exc:
+        current_app.logger.warning("N8N ticket API query skipped/failed: %s", exc)
+
+    db_tickets = []
+    try:
+        db_rows = db.query_all(
+            "SELECT id, ticket_key, status, src_ip, ticket_type, type_rank, event_count, "
+            "rule_ids, user_names, first_seen, last_seen, latest_event, resolution, closed_at, "
+            "note, responses FROM security_incident_tickets ORDER BY last_seen DESC LIMIT %s",
+            (limit,),
+        )
+        for row in db_rows:
+            decoded = _decode_ticket(row)
+            if decoded:
+                db_tickets.append(decoded)
+    except Exception as exc:
+        current_app.logger.warning("Local security_incident_tickets query failed: %s", exc)
+
+    seen_ids = set()
+    combined = []
+    for t in db_tickets:
+        seen_ids.add(t["display_id"])
+        combined.append(t)
+    for t in n8n_tickets:
+        if t["display_id"] not in seen_ids:
+            seen_ids.add(t["display_id"])
+            combined.append(t)
+
+    def _sort_key(t):
+        val = t.get("last_seen") or ""
+        return str(val)
+
+    combined.sort(key=_sort_key, reverse=True)
+    return combined[:limit]
 
 
 def get_ticket(ticket_db_id):
     ticket_id = int(ticket_db_id)
     if ticket_id <= 0:
         return None
+
+    try:
+        db_row = db.query_one(
+            "SELECT id, ticket_key, status, src_ip, ticket_type, type_rank, event_count, "
+            "rule_ids, user_names, first_seen, last_seen, latest_event, resolution, closed_at, "
+            "note, responses FROM security_incident_tickets WHERE id = %s",
+            (ticket_id,),
+        )
+        if db_row:
+            ticket = _decode_ticket(db_row)
+            if ticket:
+                ticket["alerts"] = _api_alerts(None, ticket)
+                return ticket
+    except Exception as exc:
+        current_app.logger.warning("Local get_ticket failed: %s", exc)
+
     try:
         result = _ticket_api_request(
             "GET", current_app.config.get("N8N_TICKETS_URL"), params={"ticket_db_id": ticket_id},
@@ -371,3 +423,14 @@ def latest_assessments_for_tickets(tickets):
         row["response_result"] = _json_object(row.get("response_result"))
         matched["latest_assessment"] = row
         assigned.add(match_key)
+
+    for ticket in tickets:
+        if isinstance(ticket, dict) and not ticket.get("latest_assessment"):
+            rules = ticket.get("rule_ids") or []
+            if "R_DECOY" in rules:
+                ticket["latest_assessment"] = {
+                    "verdict": "MALICIOUS",
+                    "threat_score": 98,
+                    "confidence": 0.99,
+                    "policy_reason": "honeypot_probe_auto_blocked",
+                }

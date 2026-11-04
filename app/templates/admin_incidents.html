@@ -4,12 +4,80 @@
 <section class="incident-page incident-list-page" aria-labelledby="incident-page-title">
   <header class="incident-page-header">
     <div>
-      <p class="incident-eyebrow">SECURITY OPERATIONS</p>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <p class="incident-eyebrow" style="margin: 0;">SECURITY OPERATIONS</p>
+        <span class="soc-live-badge" title="실시간 자동 갱신 활성화됨">
+          <span class="live-dot"></span> LIVE
+        </span>
+      </div>
       <h1 id="incident-page-title">보안 인시던트</h1>
       <p class="incident-intro">탐지된 사건과 AI 분석 결과, 처리 이력을 한곳에서 확인합니다.</p>
     </div>
-    <a class="btn incident-secondary-action" href="{{ url_for('admin.xdr_assessments') }}">AI-XDR 판정 보기 <span aria-hidden="true">→</span></a>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <a class="btn incident-secondary-action" href="{{ url_for('admin.list_blocked_ips') }}">차단 IP 관리 <span aria-hidden="true">→</span></a>
+      <a class="btn incident-secondary-action" href="{{ url_for('admin.xdr_assessments') }}">AI-XDR 판정 보기 <span aria-hidden="true">→</span></a>
+    </div>
   </header>
+
+  <style>
+    .soc-live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #27ae60;
+      background: rgba(39, 174, 96, 0.12);
+      padding: 2px 7px;
+      border-radius: 10px;
+      border: 1px solid rgba(39, 174, 96, 0.3);
+      vertical-align: middle;
+      letter-spacing: 0.5px;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      background: #27ae60;
+      border-radius: 50%;
+      animation: livePulse 1.8s infinite ease-in-out;
+    }
+    @keyframes livePulse {
+      0% { transform: scale(0.9); opacity: 0.7; }
+      50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 6px rgba(39, 174, 96, 0.8); }
+      100% { transform: scale(0.9); opacity: 0.7; }
+    }
+    .decoy-highlight {
+      border: 1.5px solid #e74c3c !important;
+      box-shadow: 0 0 14px rgba(231, 76, 60, 0.25) !important;
+    }
+    .card-enter-anim {
+      animation: cardSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes cardSlideIn {
+      from { opacity: 0; transform: translateY(-16px) scale(0.98); background-color: rgba(231, 76, 60, 0.15); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .decoy-live-banner {
+      display: none;
+      background: linear-gradient(90deg, #c0392b, #e74c3c);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      box-shadow: 0 2px 8px rgba(192, 57, 43, 0.3);
+      animation: bannerSlide 0.4s ease-out;
+    }
+    @keyframes bannerSlide {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+
+  <div id="decoy-live-alert-banner" class="decoy-live-banner" role="alert">
+    <strong>🚨 [실시간 탐지] 허니팟 디코이 침해 발생!</strong>
+    <span id="decoy-banner-text" style="margin-left: 6px;">공격자 IP가 감지되어 60분간 포털 전면 차단되었습니다.</span>
+  </div>
 
   {% if unavailable %}
     <div class="incident-state incident-state-error" role="alert">
@@ -22,31 +90,33 @@
     <div class="incident-overview" aria-label="인시던트 요약">
       <div class="incident-overview-card">
         <span>표시 중인 인시던트</span>
-        <strong>{{ incidents | length }}<small>건</small></strong>
+        <strong id="stat-incident-count">{{ incidents | length }}<small>건</small></strong>
       </div>
       <div class="incident-overview-card">
         <span>AI-XDR 평가 연결</span>
-        <strong>{{ incidents | selectattr('latest_assessment') | list | length }}<small>건</small></strong>
+        <strong id="stat-xdr-count">{{ incidents | selectattr('latest_assessment') | list | length }}<small>건</small></strong>
       </div>
       <div class="incident-overview-card incident-overview-note">
         <span>최근 갱신</span>
-        <strong>{{ incidents[0].last_seen or '—' }}</strong>
+        <strong id="stat-last-seen">{{ incidents[0].last_seen or '—' }}</strong>
       </div>
     </div>
 
     <div class="incident-list-heading">
       <div><h2>최근 사건</h2><p>Ticket을 선택하면 탐지·분석·대응 이력을 볼 수 있습니다.</p></div>
-      <span>{{ incidents | length }}건</span>
+      <span id="heading-count">{{ incidents | length }}건</span>
     </div>
 
-    <div class="incident-list" role="list">
+    <div class="incident-list" id="incident-container" role="list">
       {% for incident in incidents %}
       {% set status_label = {'open':'진행 중','in_progress':'처리 중','closed':'종결'}.get(incident.status, incident.status or '상태 미상') %}
-      <a class="incident-card" role="listitem" href="{{ url_for('admin.incident_detail', ticket_db_id=incident.id) }}">
+      {% set is_decoy = 'R_DECOY' in (incident.rule_ids or []) %}
+      <a class="incident-card{% if is_decoy %} decoy-highlight{% endif %}" role="listitem" data-ticket-id="{{ incident.id }}" href="{{ url_for('admin.incident_detail', ticket_db_id=incident.id) }}">
         <div class="incident-card-top">
           <div class="incident-card-title">
             <span class="incident-ticket-id">{{ incident.display_id }}</span>
             <span class="incident-status{% if incident.status == 'closed' %} is-closed{% else %} is-open{% endif %}">{{ status_label }}</span>
+            {% if is_decoy %}<span class="badge danger" style="background: #e74c3c; color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">[디코이 허니팟]</span>{% endif %}
           </div>
           <span class="incident-open-link">상세 보기 <span aria-hidden="true">→</span></span>
         </div>
@@ -58,7 +128,7 @@
           </div>
           <div class="incident-card-field">
             <span class="incident-field-label">탐지 Rule</span>
-            <strong aria-label="{{ incident.rule_ids | join(', ') or '관련 Rule 없음' }}">{% if incident.rule_ids %}{% for rule in incident.rule_ids %}<span class="incident-rule-chip">{{ rule }}</span>{% endfor %}{% else %}—{% endif %}</strong>
+            <strong aria-label="{{ incident.rule_ids | join(', ') or '관련 Rule 없음' }}">{% if incident.rule_ids %}{% for rule in incident.rule_ids %}<span class="incident-rule-chip" style="{% if rule == 'R_DECOY' %}background:#fde8e8;color:#c0392b;border:1px solid #e74c3c;{% endif %}">{{ rule }}</span>{% endfor %}{% else %}—{% endif %}</strong>
           </div>
           <div class="incident-card-field">
             <span class="incident-field-label">탐지 이벤트</span>
@@ -82,11 +152,146 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="incident-state incident-state-empty">
+    <div class="incident-state incident-state-empty" id="empty-state">
       <span class="incident-empty-mark" aria-hidden="true">✓</span>
       <h2>표시할 인시던트가 없습니다</h2>
       <p>새 탐지 Ticket이 들어오면 이곳에 표시됩니다.</p>
     </div>
+    <div class="incident-list" id="incident-container" role="list" style="display: none;"></div>
   {% endif %}
 </section>
+
+<script>
+(function() {
+  const container = document.getElementById('incident-container');
+  const emptyState = document.getElementById('empty-state');
+  const banner = document.getElementById('decoy-live-alert-banner');
+  const bannerText = document.getElementById('decoy-banner-text');
+  const statCount = document.getElementById('stat-incident-count');
+  const headingCount = document.getElementById('heading-count');
+  const statLastSeen = document.getElementById('stat-last-seen');
+
+  let knownTicketIds = new Set();
+  document.querySelectorAll('[data-ticket-id]').forEach(el => {
+    knownTicketIds.add(el.getAttribute('data-ticket-id'));
+  });
+
+  let lastBurstNotified = 0;
+
+  async function pollLiveIncidents() {
+    try {
+      const res = await fetch("{{ url_for('admin.incidents_live') }}", {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data || data.status !== 'ok') return;
+
+      // 허니팟 버스트 배너 처리
+      if (data.honeypot && data.honeypot.recent_burst > 0) {
+        if (banner) {
+          banner.style.display = 'block';
+          if (data.honeypot.latest_ip) {
+            bannerText.innerHTML = `공격자 IP <strong>${data.honeypot.latest_ip}</strong> (${data.honeypot.latest_reason || '디코이 경로 접근'}) 즉시 차단 완료 (${data.honeypot.latest_time || ''})`;
+          }
+        }
+      }
+
+      const incidents = data.incidents || [];
+      if (incidents.length === 0) return;
+
+      // 신규 인시던트 감지
+      let hasNew = false;
+      const newItems = [];
+      for (const inc of incidents) {
+        const sid = String(inc.id);
+        if (!knownTicketIds.has(sid)) {
+          knownTicketIds.add(sid);
+          newItems.push(inc);
+          hasNew = true;
+        }
+      }
+
+      if (hasNew && container) {
+        if (emptyState) emptyState.style.display = 'none';
+        container.style.display = 'flex';
+
+        // 신규 카드를 최상단에 추가
+        for (const inc of newItems.reverse()) {
+          const isDecoy = (inc.rule_ids || []).includes('R_DECOY') || (inc.ticket_type || '').includes('디코이');
+          const card = document.createElement('a');
+          card.className = `incident-card card-enter-anim${isDecoy ? ' decoy-highlight' : ''}`;
+          card.setAttribute('role', 'listitem');
+          card.setAttribute('data-ticket-id', inc.id);
+          card.href = inc.detail_url;
+
+          const statusMap = { 'open': '진행 중', 'in_progress': '처리 중', 'closed': '종결' };
+          const statusText = statusMap[inc.status] || inc.status;
+          const statusCls = inc.status === 'closed' ? 'is-closed' : 'is-open';
+
+          let ruleChips = '—';
+          if (inc.rule_ids && inc.rule_ids.length > 0) {
+            ruleChips = inc.rule_ids.map(r => 
+              `<span class="incident-rule-chip" style="${r === 'R_DECOY' ? 'background:#fde8e8;color:#c0392b;border:1px solid #e74c3c;' : ''}">${r}</span>`
+            ).join(' ');
+          }
+
+          let verdictHtml = '<strong class="incident-muted">아직 평가되지 않음</strong>';
+          if (inc.verdict) {
+            const vMap = { 'MALICIOUS': '악성', 'BENIGN': '정상', 'SUSPICIOUS': '의심', 'REVIEW_REQUIRED': '검토 필요' };
+            const vText = vMap[inc.verdict] || inc.verdict;
+            const vCls = inc.verdict === 'MALICIOUS' ? 'is-malicious' : (inc.verdict === 'BENIGN' ? 'is-benign' : 'is-review');
+            verdictHtml = `<strong class="incident-verdict ${vCls}">${vText}</strong><span class="incident-score">위험도 ${inc.threat_score || 0} / 100</span>`;
+          }
+
+          card.innerHTML = `
+            <div class="incident-card-top">
+              <div class="incident-card-title">
+                <span class="incident-ticket-id">${inc.display_id}</span>
+                <span class="incident-status ${statusCls}">${statusText}</span>
+                ${isDecoy ? '<span class="badge danger" style="background: #e74c3c; color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">[디코이 허니팟]</span>' : ''}
+              </div>
+              <span class="incident-open-link">상세 보기 <span aria-hidden="true">→</span></span>
+            </div>
+            <div class="incident-card-main">
+              <div class="incident-card-field incident-card-source">
+                <span class="incident-field-label">출발지</span>
+                <strong class="incident-mono">${inc.src_ip || 'IP 미식별'}</strong>
+              </div>
+              <div class="incident-card-field">
+                <span class="incident-field-label">탐지 Rule</span>
+                <strong>${ruleChips}</strong>
+              </div>
+              <div class="incident-card-field">
+                <span class="incident-field-label">탐지 이벤트</span>
+                <strong>${inc.event_count || 1}<small>건</small></strong>
+              </div>
+              <div class="incident-card-field incident-card-assessment">
+                <span class="incident-field-label">최근 AI-XDR 판정</span>
+                ${verdictHtml}
+              </div>
+            </div>
+            <div class="incident-card-bottom">
+              <span>최초 ${inc.first_seen || '—'}</span>
+              <span>최근 ${inc.last_seen || '—'}</span>
+            </div>
+          `;
+          container.insertBefore(card, container.firstChild);
+        }
+
+        // 통계 숫자 갱신
+        if (statCount) statCount.innerHTML = `${knownTicketIds.size}<small>건</small>`;
+        if (headingCount) headingCount.textContent = `${knownTicketIds.size}건`;
+        if (statLastSeen && incidents[0]) statLastSeen.textContent = incidents[0].last_seen || '—';
+      }
+    } catch (e) {
+      console.debug('Polling live incidents error:', e);
+    }
+  }
+
+  // 3초 주기로 폴링
+  setInterval(pollLiveIncidents, 3000);
+})();
+</script>
 {% endblock %}

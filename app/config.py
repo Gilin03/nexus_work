@@ -35,6 +35,7 @@ class Config:
         self.N8N_TICKET_AUTH_HEADER = os.environ.get("N8N_TICKET_AUTH_HEADER", "x-webhook-token").strip()
         self.N8N_TICKET_AUTH_VALUE = os.environ.get("N8N_TICKET_AUTH_VALUE", "").strip()
         self.N8N_TICKET_API_TIMEOUT = self._int_setting("N8N_TICKET_API_TIMEOUT", 5)
+        self.DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
 
         # 세션 쿠키
         self.SESSION_COOKIE_HTTPONLY = True

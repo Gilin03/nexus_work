@@ -405,15 +405,31 @@ def restore_user(user_id):
 def overview():
     roles = {r["role"]: r["n"] for r in db.query_all("SELECT role, COUNT(*) AS n FROM users WHERE deleted_at IS NULL GROUP BY role")}
     depts = db.query_all("SELECT dept, COUNT(*) AS n FROM users WHERE deleted_at IS NULL GROUP BY dept ORDER BY dept")
+    try:
+        decoy_cnt_row = db.query_one("SELECT COUNT(*) AS n FROM blocked_ips WHERE created_by = 'honeypot' AND blocked_until > NOW()")
+        blocked_decoy = decoy_cnt_row["n"] if decoy_cnt_row else 0
+    except Exception:
+        blocked_decoy = 0
+
     stats = {
         "users": sum(roles.values()),
         "locked": db.query_one("SELECT COUNT(*) AS n FROM users WHERE deleted_at IS NULL AND locked_until IS NOT NULL AND locked_until > NOW()")["n"],
         "approvals": db.query_one("SELECT COUNT(*) AS n FROM approvals WHERE status = 'pending'")["n"],
         "leaves": db.query_one("SELECT COUNT(*) AS n FROM leave_requests WHERE status = 'pending'")["n"],
         "attendance": db.query_one("SELECT COUNT(*) AS n FROM attendance WHERE work_date = %s", (today_kst(),))["n"],
+        "blocked_decoy": blocked_decoy,
     }
     recent = audit.recent_counts(current_app.config["LOG_DIR"])
-    return render_template("admin_overview.html", roles=roles, depts=depts, stats=stats, recent=recent)
+    recent_decoy = []
+    try:
+        recent_decoy = db.query_all(
+            "SELECT ip_address, reason, created_at, blocked_until, "
+            "(created_at >= NOW() - INTERVAL 10 MINUTE) AS is_recent "
+            "FROM blocked_ips WHERE created_by = 'honeypot' ORDER BY created_at DESC LIMIT 5"
+        )
+    except Exception:
+        pass
+    return render_template("admin_overview.html", roles=roles, depts=depts, stats=stats, recent=recent, recent_decoy=recent_decoy)
 
 
 # ---------- 보안 대시보드(감사 로그) ----------
@@ -873,3 +889,58 @@ def toggle_security_mode():
     new_mode = security.set_security_mode(not security.get_security_mode())
     log_event("admin_action", "ALLOW", "toggle_security", mode="on" if new_mode else "off", via="web")
     return redirect(url_for("admin.audit_log"), 303)
+
+
+
+@bp.get("/api/incidents-live")
+@permission_required("security.dashboard")
+def incidents_live():
+    """인시던트 카드 실시간 갱신 및 허니팟 차단 모니터링 API."""
+    try:
+        rows = incidents.list_tickets(limit=30)
+        incidents.latest_assessments_for_tickets(rows)
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc), "incidents": []}), 500
+
+    out = []
+    for r in rows[:20]:
+        latest_ass = r.get("latest_assessment") or {}
+        out.append({
+            "id": r.get("id"),
+            "display_id": r.get("display_id") or incidents.display_ticket_id(r.get("id")),
+            "ticket_type": r.get("ticket_type") or "",
+            "status": r.get("status") or "open",
+            "src_ip": r.get("src_ip") or "",
+            "rule_ids": r.get("rule_ids") or [],
+            "event_count": r.get("event_count") or 1,
+            "first_seen": str(r.get("first_seen") or ""),
+            "last_seen": str(r.get("last_seen") or ""),
+            "verdict": latest_ass.get("verdict"),
+            "threat_score": latest_ass.get("threat_score"),
+            "detail_url": url_for("admin.incident_detail", ticket_db_id=r.get("id")),
+        })
+
+    decoy_stats = db.query_one(
+        "SELECT COUNT(*) AS active_count, "
+        "SUM(CASE WHEN created_at >= NOW() - INTERVAL 10 MINUTE THEN 1 ELSE 0 END) AS recent_burst "
+        "FROM blocked_ips WHERE created_by = 'honeypot' AND blocked_until > NOW()"
+    ) or {"active_count": 0, "recent_burst": 0}
+
+    latest_decoy = db.query_one(
+        "SELECT ip_address, reason, created_at FROM blocked_ips "
+        "WHERE created_by = 'honeypot' ORDER BY created_at DESC LIMIT 1"
+    )
+
+    return jsonify({
+        "status": "ok",
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "incidents": out,
+        "total_incidents": len(rows),
+        "honeypot": {
+            "active_count": decoy_stats.get("active_count") or 0,
+            "recent_burst": int(decoy_stats.get("recent_burst") or 0),
+            "latest_ip": latest_decoy["ip_address"] if latest_decoy else None,
+            "latest_reason": latest_decoy["reason"] if latest_decoy else None,
+            "latest_time": str(latest_decoy["created_at"]) if latest_decoy else None,
+        },
+    })
