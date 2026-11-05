@@ -34,7 +34,15 @@
 | 결재 | 순차 결재·종결 상태 불변·자기 승인 금지(앱 + DB 트리거), 결재선 열은 앱 계정이 수정 불가 |
 | 로그 | 표준 필드의 JSON, 비밀번호·대화 내용 미기록, 의심 입력(`suspicious_input`)은 차단 없이 기록 |
 
-자세한 설계는 [docs/01_기획.md](docs/01_기획.md)에 있습니다.
+## 아키텍처 및 시스템 구조
+
+![NEXUS WORK 시스템 아키텍처 구조도](NEXUS_WORK_시스템_아키텍처_구조도.png)
+
+- **상세 아키텍처 이미지:** [NEXUS_WORK_시스템_아키텍처_구조도.png](NEXUS_WORK_시스템_아키텍처_구조도.png) / [docs/NEXUS_WORK_시스템_아키텍처_구조도.png](docs/NEXUS_WORK_시스템_아키텍처_구조도.png)
+- **대화형 아키텍처 웹문서:** [docs/NEXUS_WORK_시스템_아키텍처_구조도.html](docs/NEXUS_WORK_시스템_아키텍처_구조도.html)
+- **차세대 AI-XDR 기획서:** [docs/NEXUS_AI-XDR_하이브리드_관제_기획안.md](docs/NEXUS_AI-XDR_하이브리드_관제_기획안.md)
+
+자세한 설계는 [docs/01_기획.md](docs/01_기획.md) 및 [docs/03_팀_연동안내.md](docs/03_팀_연동안내.md)에 있습니다.
 
 ## 설치와 실행
 
@@ -119,4 +127,4 @@ run.py          개발·시연용 실행(서버 버전 비노출, 기본 루프�
 
 ## 문서
 
-[docs/01_기획.md](docs/01_기획.md) · [docs/02_메신저_API.md](docs/02_메신저_API.md) · [docs/03_팀_연동안내.md](docs/03_팀_연동안내.md) · [docs/검증안내서.md](docs/검증안내서.md) · [docs/실측_검증계획_A.md](docs/실측_검증계획_A.md) · [docs/검증결과_A_2026-10-17.md](docs/검증결과_A_2026-10-17.md) · [docs/트러블슈팅.md](docs/트러블슈팅.md) · [VULN-FINDINGS.md](VULN-FINDINGS.md) · [작업내역_체크리스트.md](작업내역_체크리스트.md)
+[docs/01_기획.md](docs/01_기획.md) · [docs/02_메신저_API.md](docs/02_메신저_API.md) · [docs/03_팀_연동안내.md](docs/03_팀_연동안내.md) · [docs/NEXUS_AI-XDR_하이브리드_관제_기획안.md](docs/NEXUS_AI-XDR_하이브리드_관제_기획안.md) · [docs/04_보안_AI_최종_도입가이드.md](docs/04_보안_AI_최종_도입가이드.md) · [docs/검증안내서.md](docs/검증안내서.md) · [docs/실측_검증계획_A.md](docs/실측_검증계획_A.md) · [docs/검증결과_A_2026-10-17.md](docs/검증결과_A_2026-10-17.md) · [docs/트러블슈팅.md](docs/트러블슈팅.md) · [VULN-FINDINGS.md](VULN-FINDINGS.md) · [작업내역_체크리스트.md](작업내역_체크리스트.md)
