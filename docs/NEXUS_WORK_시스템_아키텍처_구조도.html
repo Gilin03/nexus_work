@@ -2,20 +2,15 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>NEXUS WORK 3대 머신 분리 아키텍처 및 차세대 보안 관제 체계</title>
+<title>NEXUS WORK 전체 공격-탐지-대응 통합 아키텍처 (3대 머신 & 피드백 루프)</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700;800&display=swap');
 
   :root {
-    --bg-main: #080C14;
-    --bg-card: rgba(15, 23, 42, 0.88);
-    --bg-card-inner: rgba(30, 41, 59, 0.75);
+    --bg-main: #060911;
+    --bg-card: rgba(13, 19, 35, 0.9);
+    --bg-card-inner: rgba(26, 35, 54, 0.78);
     --border-color: rgba(255, 255, 255, 0.09);
-    --border-accent: rgba(56, 189, 248, 0.35);
-    
-    --text-primary: #F8FAFC;
-    --text-secondary: #94A3B8;
-    --text-muted: #64748B;
     
     --accent-blue: #38BDF8;
     --accent-indigo: #818CF8;
@@ -39,19 +34,19 @@
 
   body {
     background-color: var(--bg-main);
-    color: var(--text-primary);
+    color: #F8FAFC;
     width: 2400px;
     height: 1650px;
-    padding: 32px 40px;
+    padding: 28px 36px;
     overflow: hidden;
     position: relative;
     background-image: 
-      radial-gradient(circle at 10% 12%, rgba(56, 189, 248, 0.08) 0%, transparent 45%),
-      radial-gradient(circle at 90% 15%, rgba(192, 132, 252, 0.08) 0%, transparent 45%),
-      radial-gradient(circle at 50% 88%, rgba(52, 211, 153, 0.07) 0%, transparent 50%),
+      radial-gradient(circle at 12% 10%, rgba(56, 189, 248, 0.09) 0%, transparent 45%),
+      radial-gradient(circle at 88% 12%, rgba(192, 132, 252, 0.09) 0%, transparent 45%),
+      radial-gradient(circle at 50% 90%, rgba(52, 211, 153, 0.07) 0%, transparent 50%),
       linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 100% 100%, 44px 44px, 44px 44px;
+    background-size: 100% 100%, 100% 100%, 100% 100%, 42px 42px, 42px 42px;
   }
 
   /* 헤더 */
@@ -59,20 +54,20 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 20px;
+    padding-bottom: 18px;
     border-bottom: 1px solid var(--border-color);
-    margin-bottom: 20px;
+    margin-bottom: 18px;
   }
 
   .header-left {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 16px;
   }
 
   .brand-logo {
-    width: 60px;
-    height: 60px;
+    width: 58px;
+    height: 58px;
     background: linear-gradient(135deg, #0284C7, #6366F1);
     border-radius: 14px;
     display: flex;
@@ -80,17 +75,17 @@
     justify-content: center;
     box-shadow: 0 8px 24px rgba(2, 132, 199, 0.45);
     font-weight: 900;
-    font-size: 28px;
+    font-size: 26px;
     color: #FFF;
   }
 
   .header-titles h1 {
-    font-size: 31px;
+    font-size: 29px;
     font-weight: 800;
     letter-spacing: -0.5px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
   }
 
   .header-titles h1 span.highlight {
@@ -100,67 +95,64 @@
   }
 
   .header-titles p {
-    font-size: 14.5px;
-    color: var(--text-secondary);
-    margin-top: 5px;
+    font-size: 14px;
+    color: #94A3B8;
+    margin-top: 4px;
     display: flex;
-    gap: 16px;
+    gap: 14px;
   }
 
-  /* 3대 머신 분리 하이라이트 배너 */
-  .machine-badges {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: rgba(15, 23, 42, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    padding: 8px 16px;
-    border-radius: 12px;
-  }
-
-  .machine-item {
+  /* 인프라 매핑 상단 배너 */
+  .infra-flow-bar {
     display: flex;
     align-items: center;
     gap: 10px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 7px 14px;
+    border-radius: 10px;
+  }
+
+  .infra-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+  }
+
+  .ip-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    font-size: 11.5px;
+    padding: 3px 8px;
+    border-radius: 5px;
+  }
+
+  .tag-kali { background: rgba(244, 63, 94, 0.18); color: #FB7185; border: 1px solid rgba(244, 63, 94, 0.4); }
+  .tag-pfsense { background: rgba(56, 189, 248, 0.18); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.4); }
+  .tag-portal { background: rgba(52, 211, 153, 0.18); color: #34D399; border: 1px solid rgba(52, 211, 153, 0.4); }
+  .tag-soc { background: rgba(192, 132, 252, 0.18); color: #C084FC; border: 1px solid rgba(192, 132, 252, 0.4); }
+
+  .flow-arrow {
+    color: #64748B;
+    font-weight: 800;
     font-size: 13px;
   }
 
-  .machine-ip-badge {
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 800;
-    font-size: 12.5px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .ip-10 { background: rgba(56, 189, 248, 0.18); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.5); }
-  .ip-14 { background: rgba(52, 211, 153, 0.18); color: #34D399; border: 1px solid rgba(52, 211, 153, 0.5); }
-  .ip-15 { background: rgba(192, 132, 252, 0.18); color: #C084FC; border: 1px solid rgba(192, 132, 252, 0.5); }
-
-  .machine-arrow {
-    color: var(--text-muted);
-    font-weight: 900;
-    font-size: 14px;
-  }
-
-  /* 그리드 레이아웃 */
+  /* 그리드 컨테이너 */
   .grid-container {
     display: grid;
-    grid-template-columns: 480px 1fr 530px;
-    gap: 22px;
-    height: 1030px;
-    margin-bottom: 22px;
+    grid-template-columns: 500px 1fr 520px;
+    gap: 20px;
+    height: 1035px;
+    margin-bottom: 20px;
   }
 
-  /* 섹션 카드 공통 */
   .section-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: 16px;
-    padding: 22px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     backdrop-filter: blur(16px);
@@ -172,139 +164,158 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
     border-bottom: 1px solid var(--border-color);
   }
 
   .card-title {
-    font-size: 18px;
+    font-size: 15.5px;
     font-weight: 800;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    white-space: nowrap;
   }
 
-  .host-tag {
+  .pill {
+    background: rgba(255, 255, 255, 0.06);
+    color: #94A3B8;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12.5px;
-    font-weight: 800;
-    padding: 4px 10px;
-    border-radius: 6px;
   }
 
-  /* 1구역: 10번 pfSense 경계망 */
-  .col-pfsense {
-    border-top: 4px solid var(--ip-pfsense);
-  }
+  /* 00 외부 공격 & 01 pfSense (좌측) */
+  .col-pfsense { border-top: 4px solid var(--ip-pfsense); gap: 14px; }
 
-  .node-block {
-    background: var(--bg-card-inner);
-    border: 1px solid var(--border-color);
+  .kali-box {
+    background: rgba(244, 63, 94, 0.08);
+    border: 1px solid rgba(244, 63, 94, 0.35);
     border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 14px;
-    transition: all 0.2s ease;
+    padding: 14px;
   }
 
-  .node-block.border-blue { border-left: 4px solid var(--accent-blue); }
-  .node-block.border-indigo { border-left: 4px solid var(--accent-indigo); }
-  .node-block.border-rose { border-left: 4px solid var(--accent-rose); }
-  .node-block.border-emerald { border-left: 4px solid var(--accent-emerald); }
-
-  .node-header {
+  .kali-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 6px;
   }
 
-  .node-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: #FFF;
+  .kali-title {
+    font-size: 14.5px;
+    font-weight: 800;
+    color: var(--accent-rose);
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
-  .node-desc {
-    font-size: 12.5px;
-    color: var(--text-secondary);
+  .kali-desc {
+    font-size: 12px;
+    color: #CBD5E1;
     line-height: 1.5;
   }
 
-  .pfsense-gateway-box {
-    margin-top: auto;
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(99, 102, 241, 0.15));
-    border: 1.5px solid rgba(56, 189, 248, 0.45);
-    border-radius: 12px;
-    padding: 16px;
+  .kali-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
   }
 
-  .pfsense-title {
+  .pfsense-box {
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 15px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pf-rule-row {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+  }
+
+  .pf-rule-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .pf-rule-desc {
+    font-size: 11.5px;
+    color: #94A3B8;
+    line-height: 1.45;
+  }
+
+  .feedback-alert-pill {
+    background: rgba(239, 68, 68, 0.15);
+    color: #FB7185;
+    border: 1px dashed rgba(239, 68, 68, 0.4);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    margin-top: auto;
+  }
+
+  /* 02 포털 코어 (중앙) */
+  .col-core { border-top: 4px solid var(--ip-portal); gap: 14px; }
+
+  .portal-shield-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .portal-shield-box {
+    background: var(--bg-card-inner);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px;
+    border-left: 3.5px solid var(--accent-emerald);
+  }
+
+  .portal-shield-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #FFF;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
-  .pfsense-title h4 {
-    color: var(--accent-cyan);
-    font-size: 15px;
+  .rule-badge {
+    font-size: 10.5px;
     font-weight: 800;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: rgba(52, 211, 153, 0.15);
+    color: #34D399;
   }
 
-  .pfsense-feature {
-    font-size: 12px;
-    color: var(--text-secondary);
-    line-height: 1.55;
-  }
-
-  .pfsense-feature b {
-    color: #FFF;
-  }
-
-  /* 2구역 & 3구역: 14번 포털 코어 */
-  .col-core {
-    border-top: 4px solid var(--ip-portal);
-    gap: 16px;
-  }
-
-  .sec-shield-bar {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    background: rgba(15, 23, 42, 0.9);
-    border: 1px solid rgba(52, 211, 153, 0.3);
-    border-radius: 12px;
-    padding: 12px;
-  }
-
-  .shield-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 12.5px;
-  }
-
-  .shield-icon {
-    font-size: 18px;
-    color: var(--accent-emerald);
-  }
-
-  .shield-text b {
-    display: block;
-    color: #FFF;
-    font-size: 12.5px;
-  }
-
-  .shield-text span {
-    color: var(--text-muted);
-    font-size: 11px;
+  .portal-shield-desc {
+    font-size: 11.5px;
+    color: #94A3B8;
+    line-height: 1.45;
   }
 
   .modules-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 14px;
+    gap: 12px;
     flex-grow: 1;
   }
 
@@ -312,7 +323,7 @@
     background: var(--bg-card-inner);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 16px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
   }
@@ -321,31 +332,31 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   .module-title {
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: 700;
     color: #FFF;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .feature-list {
     list-style: none;
-    font-size: 12px;
-    color: var(--text-secondary);
+    font-size: 11.8px;
+    color: #94A3B8;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    line-height: 1.45;
+    gap: 5px;
+    line-height: 1.4;
   }
 
   .feature-list li {
     position: relative;
-    padding-left: 14px;
+    padding-left: 12px;
   }
 
   .feature-list li::before {
@@ -356,28 +367,19 @@
     font-weight: bold;
   }
 
-  .pill {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--text-secondary);
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
   .ai-special-card {
     grid-column: span 2;
     background: linear-gradient(135deg, rgba(88, 28, 135, 0.25), rgba(30, 58, 138, 0.25));
     border: 1px solid rgba(192, 132, 252, 0.35);
     border-radius: 12px;
-    padding: 16px;
+    padding: 14px;
   }
 
   .ai-spec-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 12px;
-    margin-top: 10px;
+    gap: 10px;
+    margin-top: 8px;
   }
 
   .ai-spec-box {
@@ -395,88 +397,72 @@
   }
 
   .ai-spec-box p {
-    color: var(--text-secondary);
+    color: #94A3B8;
     font-size: 11px;
     line-height: 1.4;
   }
 
-  /* 3구역: 14번 호스트 DB & 격리 스토리지 */
-  .col-storage {
-    border-top: 4px solid var(--ip-portal);
-    gap: 16px;
-  }
+  /* 03 데이터 계층 (우측) */
+  .col-storage { border-top: 4px solid var(--ip-portal); gap: 14px; }
 
   .db-isolation-card {
     background: var(--bg-card-inner);
     border: 1px solid rgba(52, 211, 153, 0.3);
     border-radius: 12px;
-    padding: 16px;
+    padding: 14px;
   }
 
   .db-schema-box {
     background: rgba(15, 23, 42, 0.75);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    padding: 12px;
-    margin-top: 10px;
+    padding: 10px;
+    margin-top: 8px;
   }
 
   .db-schema-title {
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
   }
 
   .schema-tables {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 11.5px;
-    color: var(--text-secondary);
-    line-height: 1.6;
+    font-size: 11px;
+    color: #94A3B8;
+    line-height: 1.5;
   }
 
   .agent-box {
     background: rgba(56, 189, 248, 0.08);
     border: 1px solid rgba(56, 189, 248, 0.3);
     border-radius: 12px;
-    padding: 14px;
-  }
-
-  .agent-box h4 {
-    color: var(--accent-blue);
-    font-size: 13.5px;
-    font-weight: 700;
-    margin-bottom: 6px;
-  }
-
-  .agent-box p {
-    font-size: 12px;
-    color: var(--text-secondary);
-    line-height: 1.5;
+    padding: 12px;
   }
 
   .security-triggers-box {
     background: rgba(239, 68, 68, 0.08);
     border: 1px solid rgba(239, 68, 68, 0.3);
     border-radius: 12px;
-    padding: 14px;
+    padding: 12px;
     margin-top: auto;
   }
 
   .security-triggers-box h4 {
     color: var(--accent-rose);
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 700;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
   }
 
   .security-triggers-box ul {
     list-style: none;
-    font-size: 11.5px;
-    color: var(--text-secondary);
-    line-height: 1.5;
+    font-size: 11px;
+    color: #94A3B8;
+    line-height: 1.45;
   }
 
   .security-triggers-box ul li {
@@ -491,13 +477,13 @@
     font-size: 9px;
   }
 
-  /* 하단 전체: 15번 통합 관제 & SOAR 서버 */
+  /* 하단: 03 Graylog + 04 n8n / AI-XDR SOAR (192.168.3.15) */
   .footer-soc-server {
     background: linear-gradient(180deg, rgba(24, 18, 43, 0.95), rgba(13, 10, 26, 0.98));
     border: 1.5px solid rgba(192, 132, 252, 0.4);
     border-top: 4px solid var(--ip-soc);
     border-radius: 16px;
-    padding: 20px 24px;
+    padding: 18px 22px;
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
   }
 
@@ -505,11 +491,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
   }
 
   .soc-title {
-    font-size: 18px;
+    font-size: 17.5px;
     font-weight: 800;
     display: flex;
     align-items: center;
@@ -517,74 +503,92 @@
     color: #FFF;
   }
 
-  .soc-pipeline {
+  .soc-streams-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 16px;
+    grid-template-columns: 280px 320px 1fr 1fr 340px;
+    gap: 14px;
     position: relative;
   }
 
-  .soc-step {
-    background: rgba(30, 27, 54, 0.6);
+  .stream-card {
+    background: rgba(30, 27, 54, 0.65);
     border: 1px solid rgba(192, 132, 252, 0.25);
-    border-radius: 12px;
-    padding: 14px;
-    position: relative;
+    border-radius: 10px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
+    position: relative;
   }
 
-  .soc-step::after {
+  .stream-card::after {
     content: "➔";
     position: absolute;
-    right: -14px;
+    right: -12px;
     top: 50%;
     transform: translateY(-50%);
     color: var(--accent-purple);
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 900;
     z-index: 10;
   }
 
-  .soc-step:last-child::after {
+  .stream-card:last-child::after {
     display: none;
   }
 
-  .step-num {
-    font-size: 11px;
+  .stream-tag {
+    font-size: 10.5px;
     font-weight: 800;
     color: var(--accent-purple);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
   }
 
-  .step-name {
-    font-size: 14px;
+  .stream-name {
+    font-size: 13.5px;
     font-weight: 700;
     color: #FFF;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
-  .step-content {
-    font-size: 12px;
-    color: var(--text-secondary);
+  .stream-body {
+    font-size: 11.5px;
+    color: #94A3B8;
     line-height: 1.45;
   }
 
-  .step-content b {
+  .stream-body b {
     color: #E2E8F0;
   }
 
-  .soc-sub-footer {
+  .feedback-loop-bar {
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-size: 12px;
-    color: var(--text-muted);
   }
+
+  .loop-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: #CBD5E1;
+  }
+
+  .loop-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 800;
+    font-size: 10.5px;
+  }
+
+  .lb-1 { background: rgba(56, 189, 248, 0.2); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.4); }
+  .lb-2 { background: rgba(52, 211, 153, 0.2); color: #34D399; border: 1px solid rgba(52, 211, 153, 0.4); }
+  .lb-3 { background: rgba(251, 113, 133, 0.2); color: #FB7185; border: 1px solid rgba(251, 113, 133, 0.4); }
 </style>
 </head>
 <body>
@@ -594,29 +598,34 @@
     <div class="header-left">
       <div class="brand-logo">NX</div>
       <div class="header-titles">
-        <h1><span class="highlight">NEXUS WORK</span> 3대 핵심 서버 분리 아키텍처 & 차세대 AI-XDR 보안 체계</h1>
+        <h1><span class="highlight">NEXUS WORK</span> 전체 공격-탐지-대응 통합 아키텍처 (3대 핵심 서버 & 차단 피드백 루프)</h1>
         <p>
-          <span>🌐 <b>플랫폼:</b> 사내 업무 포털 (ERP + 그룹웨어 + 전자결재 + 생성형 AI 어시스턴트)</span>
-          <span>🛡️ <b>프로젝트:</b> 실전 AI Agent 보안 방어전 (App & DB 하드닝 및 하이브리드 능동 대응)</span>
+          <span>🌐 <b>사내 업무 포털:</b> ERP + 그룹웨어 + 전자결재 + 생성형 AI 어시스턴트</span>
+          <span>🛡️ <b>프로젝트:</b> 실전 AI Agent 보안 방어전 (App & DB 완벽 하드닝 및 하이브리드 능동 대응)</span>
         </p>
       </div>
     </div>
     
-    <!-- 3대 머신 IP 최상단 인프라 매핑 바 -->
-    <div class="machine-badges">
-      <div class="machine-item">
-        <span class="machine-ip-badge ip-10">192.168.3.10</span>
-        <span><b>경계 서버</b> (이시헌)</span>
+    <!-- 4단계 인프라 플로우 상단 바 -->
+    <div class="infra-flow-bar">
+      <div class="infra-node">
+        <span class="ip-tag tag-kali">00. 외부 공격 (Kali)</span>
+        <span>서른두 가지 실전 공격</span>
       </div>
-      <span class="machine-arrow">➔</span>
-      <div class="machine-item">
-        <span class="machine-ip-badge ip-14">192.168.3.14</span>
-        <span><b>포털·DB 서버</b> (홍주형)</span>
+      <span class="flow-arrow">➔</span>
+      <div class="infra-node">
+        <span class="ip-tag tag-pfsense">01. 192.168.3.10</span>
+        <span><b>경계 방어</b> (이시헌)</span>
       </div>
-      <span class="machine-arrow">➔</span>
-      <div class="machine-item">
-        <span class="machine-ip-badge ip-15">192.168.3.15</span>
-        <span><b>관제·SOAR 서버</b> (김태빈·진혜정)</span>
+      <span class="flow-arrow">➔</span>
+      <div class="infra-node">
+        <span class="ip-tag tag-portal">02. 192.168.3.14</span>
+        <span><b>포털·DB 하드닝</b> (홍주형)</span>
+      </div>
+      <span class="flow-arrow">➔</span>
+      <div class="infra-node">
+        <span class="ip-tag tag-soc">03/04. 192.168.3.15</span>
+        <span><b>통합 관제 & SOAR</b> (김태빈·진혜정)</span>
       </div>
     </div>
   </header>
@@ -624,98 +633,136 @@
   <!-- 3열 본문 그리드 -->
   <div class="grid-container">
 
-    <!-- 1. [192.168.3.10] 네트워크 경계 및 인프라 진입 계층 -->
+    <!-- 1구역: 00 외부 공격 (Kali) & 01 pfSense 경계 방어 (이시헌) -->
     <div class="section-card col-pfsense">
       <div class="card-header">
         <div class="card-title">
-          <span>🛡️ 네트워크 경계 서버</span>
+          <span>🛡️ 00. 외부 공격 & 01. pfSense 경계 방어</span>
         </div>
-        <span class="host-tag ip-10">HOST: 192.168.3.10</span>
+        <span class="ip-tag tag-pfsense">HOST: 192.168.3.10 (이시헌)</span>
       </div>
 
-      <div class="node-block border-blue">
-        <div class="node-header">
-          <span class="node-title">웹 브라우저 사용자</span>
-          <span class="pill">Strict CSP</span>
+      <!-- 00 외부 공격자 박스 -->
+      <div class="kali-box">
+        <div class="kali-header">
+          <span class="kali-title">⚡ 외부 공격자 (Kali Linux) — 실전 침투 테스트</span>
+          <span class="pill" style="color: var(--accent-rose); border-color: rgba(244,63,94,0.3);">32종 라이브 공격</span>
         </div>
-        <p class="node-desc">
-          임직원 PC에서 포털 접속 시 192.168.3.10:5070 경유.<br/>
-          (포털 서버 14번 5070 직접 접속 차단 방화벽 강제)
+        <p class="kali-desc">
+          공개 도구 18종 + 진혜정 자체 제작 20종 등 총 32종의 실전 공격을 라이브 서버에 직접 실행.
         </p>
+        <div class="kali-tags">
+          <span class="pill" style="color: #FDA4AF;">R1 로그인 대입</span>
+          <span class="pill" style="color: #FDA4AF;">R2 프롬프트 인젝션</span>
+          <span class="pill" style="color: #FDA4AF;">R8 디코이 스캔</span>
+          <span class="pill" style="color: #FDA4AF;">R9+R10 비인가 접근</span>
+        </div>
       </div>
 
-      <div class="node-block border-indigo">
-        <div class="node-header">
-          <span class="node-title">nexus-messenger 네이티브 앱</span>
-          <span class="pill">REST + WebSocket</span>
+      <!-- 01 pfSense 경계 방어 박스 -->
+      <div class="pfsense-box">
+        <div style="font-size: 13.5px; font-weight: 800; color: #FFF; margin-bottom: 4px;">
+          pfSense L3/L4 방화벽 & HAProxy 게이트웨이
         </div>
-        <p class="node-desc">
-          Flutter 데스크톱 & 모바일 메신저 클라이언트.<br/>
-          토큰 기반 인증(Bearer API) + Socket.IO 실시간 연동.
-        </p>
-      </div>
 
-      <div class="node-block border-rose">
-        <div class="node-header">
-          <span class="node-title">외부 침투 공격자 (Kali Linux)</span>
-          <span class="pill" style="color: var(--accent-rose);">Threat Source</span>
+        <div class="pf-rule-row">
+          <div class="pf-rule-title">
+            <span>① GeoBlock · ntopng · pfBlockerNG</span>
+            <span class="pill">상시 트래픽 모니터링</span>
+          </div>
+          <div class="pf-rule-desc">
+            국가 단위(GeoIP) 악성 대역 선제 차단 및 실시간 트래픽 가시성 확보.
+          </div>
         </div>
-        <p class="node-desc">
-          SQLi, XSS, 프롬프트 인젝션, 무차별 대입, 디코이 허니팟 경로 스캔 시도.
-        </p>
-      </div>
 
-      <!-- pfSense 방화벽 핵심 역할 -->
-      <div class="pfsense-gateway-box">
-        <div class="pfsense-title">
-          <h4>pfSense L3/L4 경계 방화벽 & HAProxy</h4>
-          <span class="pill">이시헌 담당</span>
+        <div class="pf-rule-row">
+          <div class="pf-rule-title">
+            <span>② XDR_BLOCKED_IPS (URL Table 피드)</span>
+            <span class="pill" style="color: var(--accent-emerald);">포털 차단 피드</span>
+          </div>
+          <div class="pf-rule-desc">
+            포털 14번 서버의 <code>blocked_ips</code> URL Table을 주기적으로 폴링해 L3/L4 드롭.
+          </div>
         </div>
-        <div class="pfsense-feature">
-          • <b>단일 게이트웨이 강제:</b> 외부 모든 트래픽은 10번 포트 5070으로만 수신<br/>
-          • <b>SNAT 및 역방향 프록시:</b> 포털 14번 서버로 정제된 패킷 포워딩<br/>
-          • <b>Alias API 연동 차단:</b> n8n/AI-XDR 지시에 따라 공격 IP 실시간 드롭
+
+        <div class="pf-rule-row">
+          <div class="pf-rule-title">
+            <span>③ NEXUS_AUTO_BLOCK (n8n API 연동)</span>
+            <span class="pill" style="color: var(--accent-purple);">n8n 실시간 API</span>
+          </div>
+          <div class="pf-rule-desc">
+            n8n SOAR의 <code>/block</code> API 호출 수신 즉시 해당 IP 방화벽 테이블 등록.
+          </div>
+        </div>
+
+        <div class="pf-rule-row">
+          <div class="pf-rule-title">
+            <span>④ Suricata IDS/IPS & HAProxy NAT</span>
+            <span class="pill">패턴 탐지 ➔ 15번 전송</span>
+          </div>
+          <div class="pf-rule-desc">
+            WAN:5070 패킷을 안전하게 LAN 포털(192.168.3.14:5070)로 포워딩. Suricata Alert 생성.
+          </div>
+        </div>
+
+        <div class="feedback-alert-pill">
+          ※ GeoBlock · XDR_BLOCKED_IPS · NEXUS_AUTO_BLOCK 3개 중 하나라도 걸리면 <b>즉시 Drop (로그만 보존)</b>
         </div>
       </div>
     </div>
 
-    <!-- 2. [192.168.3.14] 코어 애플리케이션 계층 (중앙 대형) -->
+    <!-- 2구역: 02 LAN 내부 — 포털 서버 방어선 (홍주형) -->
     <div class="section-card col-core">
       <div class="card-header">
         <div class="card-title">
-          <span>⚡ NEXUS WORK 포털 코어 서버 (Flask + Waitress WSGI)</span>
+          <span>⚡ 02. LAN 내부 포털 서버 방어선 (Flask + Waitress WSGI)</span>
         </div>
-        <span class="host-tag ip-14">HOST: 192.168.3.14 (포트 5070)</span>
+        <span class="ip-tag tag-portal">HOST: 192.168.3.14 (홍주형 / 포트 5070)</span>
       </div>
 
-      <!-- 상단 하드닝 쉴드 바 -->
-      <div class="sec-shield-bar">
-        <div class="shield-item">
-          <div class="shield-icon">🛡️</div>
-          <div class="shield-text">
-            <b>AST 정적 SQL 바인딩</b>
-            <span>SQL 인젝션 원천 차단</span>
+      <!-- 상단 4대 방어 모듈 (R1, R2, R8, R9+R10) -->
+      <div class="portal-shield-grid">
+        <div class="portal-shield-box">
+          <div class="portal-shield-title">
+            <span>로그인 · 세션</span>
+            <span class="rule-badge">R1 검증</span>
+          </div>
+          <div class="portal-shield-desc">
+            5회 실패 시 15분 즉시 잠금<br/>
+            RBAC · IDOR · BOLA 철저 차단
           </div>
         </div>
-        <div class="shield-item">
-          <div class="shield-icon">🔑</div>
-          <div class="shield-text">
-            <b>Argon2id + Pinning</b>
-            <span>고정 관리자/5회 실패 잠금</span>
+
+        <div class="portal-shield-box">
+          <div class="portal-shield-title">
+            <span>AI 에이전트 · 챗봇</span>
+            <span class="rule-badge">R2 검증</span>
+          </div>
+          <div class="portal-shield-desc">
+            직접 Prompt Injection 즉시 차단<br/>
+            AI 4중 캐스케이드 판정 0.5초
           </div>
         </div>
-        <div class="shield-item">
-          <div class="shield-icon">🧹</div>
-          <div class="shield-text">
-            <b>RichText HTML Sanitizer</b>
-            <span>28종 태그 살균 XSS 방어</span>
+
+        <div class="portal-shield-box">
+          <div class="portal-shield-title">
+            <span>디코이 허니팟</span>
+            <span class="rule-badge">R8 검증</span>
+          </div>
+          <div class="portal-shield-desc">
+            /.env, /.git/config 미끼 경로<br/>
+            접근 즉시 제 IP 등록 및 차단
           </div>
         </div>
-        <div class="shield-item">
-          <div class="shield-icon">🪤</div>
-          <div class="shield-text">
-            <b>Decoy Canaries 허니팟</b>
-            <span>/.env, /.git 접근 즉시 탐지</span>
+
+        <div class="portal-shield-box">
+          <div class="portal-shield-title">
+            <span>관리자 · 기밀 경로</span>
+            <span class="rule-badge">R9+R10 검증</span>
+          </div>
+          <div class="portal-shield-desc">
+            /admin, /confidential, /finance<br/>
+            비인가 접근 403 고정 차단
           </div>
         </div>
       </div>
@@ -744,7 +791,7 @@
             <li>대시보드: 출퇴근 체크, 결재 대기 배지, 내 업무 요약</li>
             <li>공지사항 및 자유게시판: 이미지/PDF 안전 붙여넣기 및 미리보기</li>
             <li>인사관리: 사원/대리/과장/팀장/관리자 5단계 RBAC 세부 인가 통제</li>
-            <li>침해 대응: blocked_ips 기반 실시간 403 차단 미들웨어</li>
+            <li>실시간 침해 대응: blocked_ips 기반 즉시 403 차단 미들웨어</li>
           </ul>
         </div>
 
@@ -769,7 +816,7 @@
           <ul class="feature-list">
             <li>사용자 생성 시 임시 비밀번호 1회 표시 (DB 해시만 저장)</li>
             <li>보안 대시보드: SVG 시계열 차트, 위협 지표 8종, IP/계정 랭킹</li>
-            <li>감사 로그 읽기 스트림 + CSV 수식 주입 방어 내보내기</li>
+            <li>감사 로그 스트림 + CSV 수식 주입 방어 내보내기</li>
             <li>최고관리자(admin, hongjh) DB 트리거 영구 고정 (강등 불가)</li>
           </ul>
         </div>
@@ -782,33 +829,33 @@
           </div>
           <div class="ai-spec-grid">
             <div class="ai-spec-box">
-              <h5>다중 LLM 프로바이더 스위칭</h5>
-              <p>Groq (Llama-3.3-70b 초고속 클라우드), Ollama (로컬 폐쇄망), Google Gemini 선택적 스위칭 지원</p>
+              <h5>다중 LLM 4중 캐스케이드 (0.5초)</h5>
+              <p>Groq (Llama-3.3-70b 클라우드), Ollama (폐쇄망), Gemini, 내장 룰 엔진 자동 폴백</p>
             </div>
             <div class="ai-spec-box">
               <h5>Security Gateway 도구 호출 통제</h5>
-              <p>챗봇 권한은 사용자 권한 종속. Tool 호출 시 RBAC 재검증으로 기밀문서 비인가 열람 원천 차단</p>
+              <p>챗봇 권한은 사용자 권한 종속. Tool 호출 시 RBAC 재검증으로 기밀문서 비인가 유출 차단</p>
             </div>
             <div class="ai-spec-box">
               <h5>프롬프트 인젝션 방어 & 격리</h5>
-              <p>시스템 프롬프트 탈취 방어, 응답 HTML 비실행 이스케이프, 8,000자 상한 및 제어문자 필터링</p>
+              <p>시스템 프롬프트 탈취 방어, 응답 HTML 비실행 이스케이프, 8,000자 상한 필터링</p>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 3. [192.168.3.14] 로컬 호스트 DB & 격리 스토리지 (우측) -->
+    <!-- 3구역: 데이터 계층 (MySQL 8.4) & Wazuh Agent -->
     <div class="section-card col-storage">
       <div class="card-header">
         <div class="card-title">
           <span>🗄️ 호스트 데이터 계층 (MySQL 8.4)</span>
         </div>
-        <span class="host-tag ip-14">HOST: 192.168.3.14 (포트 3307)</span>
+        <span class="ip-tag tag-portal">HOST: 192.168.3.14 (포트 3307)</span>
       </div>
 
       <div class="db-isolation-card">
-        <div class="node-title" style="color: var(--accent-emerald);">이중 DB 계정 권한 물리적 분리 (Dual-Privilege)</div>
+        <div class="node-title" style="color: var(--accent-emerald); font-size: 13.5px; font-weight: 700;">이중 DB 계정 권한 물리적 분리 (Dual-Privilege)</div>
         
         <div class="db-schema-box">
           <div class="db-schema-title">
@@ -834,8 +881,10 @@
 
       <!-- Wazuh Agent 박스 -->
       <div class="agent-box">
-        <h4>📡 Wazuh Agent (nexus-board-14)</h4>
-        <p>
+        <div style="font-size: 13px; font-weight: 700; color: var(--accent-blue); margin-bottom: 4px;">
+          📡 Wazuh Agent (nexus-board-14)
+        </div>
+        <p style="font-size: 11.5px; color: #94A3B8; line-height: 1.45;">
           • 14번 호스트의 <code>app/</code>, <code>scripts/</code>, <code>.env</code> 파일 무결성(FIM) 실시간 감시<br/>
           • <code>logs/security.jsonl</code> 보안 이벤트를 15번 매니저로 암호화 전송 (TCP 1514)
         </p>
@@ -853,80 +902,92 @@
 
   </div>
 
-  <!-- 하단 전체: [192.168.3.15] 통합 관제 & SOAR 서버 -->
+  <!-- 하단 전체: 03 통합 탐지 (Graylog) & 04 사건 정리 · 분석 · 대응 (n8n & AI-XDR) -->
   <div class="footer-soc-server">
     <div class="soc-header">
       <div class="soc-title">
-        <span>🛡️ 통합 보안관제 & AI-XDR SOAR 서버 (Wazuh Manager · Graylog · n8n)</span>
-        <span class="host-tag ip-15">HOST: 192.168.3.15 (김태빈 담당 · 진혜정 연동)</span>
+        <span>🛡️ 03. 통합 탐지 (Graylog) & 04. 사건 정리 · 분석 · 대응 (n8n SOAR & AI-XDR)</span>
+        <span class="ip-tag tag-soc">HOST: 192.168.3.15 (김태빈 담당 · 진혜정 n8n 기반 구축)</span>
       </div>
-      <div style="display: flex; gap: 10px;">
-        <span class="pill" style="color: var(--accent-amber); border-color: rgba(251, 191, 36, 0.4);">주간 (08~20시): Discord 승인형 반자동</span>
-        <span class="pill" style="color: var(--accent-rose); border-color: rgba(239, 68, 68, 0.4);">야간 (20~08시): 80점+ 완전 자동 격리</span>
-      </div>
-    </div>
-
-    <div class="soc-pipeline">
-      <!-- 1단계 -->
-      <div class="soc-step">
-        <span class="step-num">Step 1. Telemetry Ingest</span>
-        <span class="step-name">실시간 텔레메트리 수집</span>
-        <div class="step-content">
-          • <b>pfSense (10번):</b> Syslog 패킷 로그 수집<br/>
-          • <b>NEXUS App (14번):</b> GELF(UDP 12201) 웹 로그 전송<br/>
-          • <b>Wazuh Agent (14번):</b> 코드 FIM diff 전송 (TCP 1514)
-        </div>
-      </div>
-
-      <!-- 2단계 -->
-      <div class="soc-step">
-        <span class="step-num">Step 2. Fast Filter</span>
-        <span class="step-name">룰셋 1차 고속 필터링</span>
-        <div class="step-content">
-          • <b>Graylog Streams:</b> 룰셋 R1~R12 기반 시그니처 분류<br/>
-          • <b>무차별 대입 탐지:</b> 5회 이상 실패 계정 선별 (R1/R5)<br/>
-          • <b>디코이 허니팟:</b> /.env 및 비인가 경로 탐색 태깅
-        </div>
-      </div>
-
-      <!-- 3단계 -->
-      <div class="soc-step">
-        <span class="step-num">Step 3. AI Deep Triage</span>
-        <span class="step-name">AI 심층 위협 판정 엔진</span>
-        <div class="soc-content">
-          • <b>Groq / Ollama LLM:</b> 공격 킬체인 및 행위 문맥 분석<br/>
-          • <b>오탐(False Positive) 배제:</b> 정상 오타 및 네트워크 오류 제외<br/>
-          • <b>위협 점수 산출:</b> 0~100 Threat Score 및 대응 권고
-        </div>
-      </div>
-
-      <!-- 4단계 -->
-      <div class="soc-step">
-        <span class="step-num">Step 4. Time Gate & SOAR</span>
-        <span class="step-name">시간대별 대응 모드 분기</span>
-        <div class="step-content">
-          • <b>주간:</b> Discord 관제 채널 승인형 티켓 (1클릭 승인)<br/>
-          • <b>야간/주말:</b> 80점 이상 위협 즉시 자동 격리 트리거<br/>
-          • <b>n8n SOAR:</b> 워크플로우 상태 추적 및 실행 오케스트레이션
-        </div>
-      </div>
-
-      <!-- 5단계 -->
-      <div class="soc-step">
-        <span class="step-num">Step 5. Active Response</span>
-        <span class="step-name">다계층 통합 능동 차단</span>
-        <div class="step-content">
-          • <b>pfSense (10번):</b> 방화벽 Alias API로 L3/L4 IP 영구 차단<br/>
-          • <b>NEXUS Web (14번):</b> blocked_ips 자동 등록 & 세션 즉시 파기<br/>
-          • <b>Wazuh Manager (15번):</b> 침해 호스트 프로세스 강제 종료
-        </div>
+      <div style="display: flex; gap: 8px;">
+        <span class="pill" style="color: var(--accent-amber); border-color: rgba(251, 191, 36, 0.4);">주간: Discord 승인형 반자동</span>
+        <span class="pill" style="color: var(--accent-rose); border-color: rgba(239, 68, 68, 0.4);">야간: 80점+ 완전 자동 격리</span>
       </div>
     </div>
 
-    <div class="soc-sub-footer">
-      <span>NEXUS WORK 3-Tier Enterprise Infrastructure Architecture (10번 경계망 ➔ 14번 포털·DB ➔ 15번 통합 관제)</span>
-      <span>Enterprise Architecture Specification v2.1 • Confidential & Defense Ready</span>
-      <span>Validated with 1,200+ Automated Tests & Zero Hardening Bypass</span>
+    <!-- 5단계 가로 스트림 흐름 -->
+    <div class="soc-streams-grid">
+      <!-- 1. 수집 Input -->
+      <div class="stream-card">
+        <span class="stream-tag">Input & Parsing</span>
+        <span class="stream-name">1. Graylog Input</span>
+        <div class="stream-body">
+          • <b>수집 소스:</b> Wazuh FIM, Suricata 로그, 포털 security.jsonl<br/>
+          • <b>프로토콜:</b> GELF 12201 · Syslog 5140<br/>
+          • <b>필드 정규화:</b> ts ➔ timestamp 통일
+        </div>
+      </div>
+
+      <!-- 2. 3대 Stream 분기 -->
+      <div class="stream-card">
+        <span class="stream-tag">Stream Routing</span>
+        <span class="stream-name">2. 3개 Stream 분기</span>
+        <div class="stream-body">
+          • <b>NEXUS_AUTH:</b> R1 · R5 · R6 · R7<br/>
+          • <b>NEXUS_AI_SECURITY:</b> R2 · R3 · R4 · R11 · R12<br/>
+          • <b>NEXUS_WEB:</b> R8 · R9 · R10 · FIM
+        </div>
+      </div>
+
+      <!-- 3. R1~R12 Event & 증적 -->
+      <div class="stream-card">
+        <span class="stream-tag">Detection Rules</span>
+        <span class="stream-name">3. R1~R12 이벤트 & 증적</span>
+        <div class="stream-body">
+          • <b>임계치 탐지:</b> 예) R8 60초 내 같은 IP 404 ≥30회<br/>
+          • <b>Webhook 발송:</b> Graylog Event ➔ n8n POST<br/>
+          • <b>증적 관리:</b> Positive/Negative 구분 기록, 비밀번호·토큰·원문 미기록 (pattern_id만)
+        </div>
+      </div>
+
+      <!-- 4. AI-XDR & 승인 -->
+      <div class="stream-card">
+        <span class="stream-tag">AI Triage & Gate</span>
+        <span class="stream-name">4. AI-XDR (Groq) & 승인</span>
+        <div class="stream-body">
+          • <b>n8n (SOAR):</b> 알림 자동 병합 & Ticket 연결<br/>
+          • <b>AI-XDR:</b> 사건 맥락 분석, 위험도 · 근거 산출<br/>
+          • <b>관리자 승인:</b> 정상 사용자 오탐 방지 (Human-in-the-Loop)
+        </div>
+      </div>
+
+      <!-- 5. 상황판 & 능동 차단 -->
+      <div class="stream-card">
+        <span class="stream-tag">Enforcement & SOC</span>
+        <span class="stream-name">5. 상황판 & 다계층 차단</span>
+        <div class="stream-body">
+          • <b>실시간 상황판:</b> 인시던트 현황 & 이력 표출<br/>
+          • <b>① pfSense:</b> NEXUS_AUTO_BLOCK IP 드롭<br/>
+          • <b>② 포털 웹:</b> blocked_ips 등록 & 세션 즉시 만료<br/>
+          • <b>③ 호스트:</b> Wazuh FIM 프로세스 격리
+        </div>
+      </div>
+    </div>
+
+    <!-- 하단 피드백 루프 요약 바 -->
+    <div class="feedback-loop-bar">
+      <div class="loop-item">
+        <span class="loop-badge lb-1">① n8n 자동 차단</span>
+        <span>n8n /block API ➔ pfSense NEXUS_AUTO_BLOCK 테이블 즉시 등록</span>
+      </div>
+      <div class="loop-item">
+        <span class="loop-badge lb-2">② 포털 차단 피드</span>
+        <span>포털 14번 blocked_ips ➔ pfSense XDR_BLOCKED_IPS (URL Table 주기적 수신)</span>
+      </div>
+      <div class="loop-item">
+        <span class="loop-badge lb-3">③ 포털 내부 세션 격리</span>
+        <span>n8n DB/API 연동 ➔ 14번 포털 활성 세션 즉시 만료 및 로그인 잠금 집행</span>
+      </div>
     </div>
   </div>
 
