@@ -6,16 +6,16 @@ html_content = """<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>NEXUS WORK 시스템 구조 및 엔터프라이즈 보안 아키텍처</title>
+<title>NEXUS WORK 3대 머신 분리 아키텍처 및 차세대 보안 관제 체계</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700;800&display=swap');
 
   :root {
-    --bg-main: #0B0F19;
-    --bg-card: rgba(17, 24, 39, 0.85);
-    --bg-card-inner: rgba(30, 41, 59, 0.7);
-    --border-color: rgba(255, 255, 255, 0.08);
-    --border-accent: rgba(56, 189, 248, 0.3);
+    --bg-main: #080C14;
+    --bg-card: rgba(15, 23, 42, 0.88);
+    --bg-card-inner: rgba(30, 41, 59, 0.75);
+    --border-color: rgba(255, 255, 255, 0.09);
+    --border-accent: rgba(56, 189, 248, 0.35);
     
     --text-primary: #F8FAFC;
     --text-secondary: #94A3B8;
@@ -28,11 +28,10 @@ html_content = """<!DOCTYPE html>
     --accent-amber: #FBBF24;
     --accent-rose: #FB7185;
     --accent-cyan: #22D3EE;
-    
-    --badge-blue: rgba(56, 189, 248, 0.15);
-    --badge-emerald: rgba(52, 211, 153, 0.15);
-    --badge-rose: rgba(251, 113, 133, 0.15);
-    --badge-amber: rgba(251, 191, 36, 0.15);
+
+    --ip-pfsense: #38BDF8;
+    --ip-portal: #34D399;
+    --ip-soc: #C084FC;
   }
 
   * {
@@ -47,109 +46,120 @@ html_content = """<!DOCTYPE html>
     color: var(--text-primary);
     width: 2400px;
     height: 1650px;
-    padding: 36px 44px;
+    padding: 32px 40px;
     overflow: hidden;
     position: relative;
     background-image: 
-      radial-gradient(circle at 10% 15%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
-      radial-gradient(circle at 90% 20%, rgba(129, 140, 248, 0.07) 0%, transparent 40%),
-      radial-gradient(circle at 50% 85%, rgba(52, 211, 153, 0.05) 0%, transparent 45%),
-      linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+      radial-gradient(circle at 10% 12%, rgba(56, 189, 248, 0.08) 0%, transparent 45%),
+      radial-gradient(circle at 90% 15%, rgba(192, 132, 252, 0.08) 0%, transparent 45%),
+      radial-gradient(circle at 50% 88%, rgba(52, 211, 153, 0.07) 0%, transparent 50%),
+      linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 44px 44px, 44px 44px;
   }
 
-  /* 헤더 영역 */
+  /* 헤더 */
   header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 24px;
+    padding-bottom: 20px;
     border-bottom: 1px solid var(--border-color);
-    margin-bottom: 24px;
+    margin-bottom: 20px;
   }
 
   .header-left {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 18px;
   }
 
   .brand-logo {
-    width: 58px;
-    height: 58px;
+    width: 60px;
+    height: 60px;
     background: linear-gradient(135deg, #0284C7, #6366F1);
     border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 8px 24px rgba(2, 132, 199, 0.4);
+    box-shadow: 0 8px 24px rgba(2, 132, 199, 0.45);
     font-weight: 900;
     font-size: 28px;
-    letter-spacing: -1px;
     color: #FFF;
   }
 
   .header-titles h1 {
-    font-size: 32px;
+    font-size: 31px;
     font-weight: 800;
     letter-spacing: -0.5px;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
   }
 
   .header-titles h1 span.highlight {
-    background: linear-gradient(90deg, #38BDF8, #818CF8);
+    background: linear-gradient(90deg, #38BDF8, #A78BFA);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 
   .header-titles p {
-    font-size: 15px;
+    font-size: 14.5px;
     color: var(--text-secondary);
-    margin-top: 4px;
+    margin-top: 5px;
     display: flex;
     gap: 16px;
   }
 
-  .header-titles p span {
+  /* 3대 머신 분리 하이라이트 배너 */
+  .machine-badges {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 8px 16px;
+    border-radius: 12px;
+  }
+
+  .machine-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+  }
+
+  .machine-ip-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    font-size: 12.5px;
     display: flex;
     align-items: center;
     gap: 6px;
   }
 
-  .header-badges {
-    display: flex;
-    gap: 12px;
+  .ip-10 { background: rgba(56, 189, 248, 0.18); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.5); }
+  .ip-14 { background: rgba(52, 211, 153, 0.18); color: #34D399; border: 1px solid rgba(52, 211, 153, 0.5); }
+  .ip-15 { background: rgba(192, 132, 252, 0.18); color: #C084FC; border: 1px solid rgba(192, 132, 252, 0.5); }
+
+  .machine-arrow {
+    color: var(--text-muted);
+    font-weight: 900;
+    font-size: 14px;
   }
 
-  .badge {
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border: 1px solid transparent;
-  }
-
-  .badge-blue { background: var(--badge-blue); color: var(--accent-blue); border-color: rgba(56, 189, 248, 0.3); }
-  .badge-emerald { background: var(--badge-emerald); color: var(--accent-emerald); border-color: rgba(52, 211, 153, 0.3); }
-  .badge-rose { background: var(--badge-rose); color: var(--accent-rose); border-color: rgba(251, 113, 133, 0.3); }
-  .badge-amber { background: var(--badge-amber); color: var(--accent-amber); border-color: rgba(251, 191, 36, 0.3); }
-
-  /* 메인 그리드 레이아웃 */
+  /* 그리드 레이아웃 */
   .grid-container {
     display: grid;
-    grid-template-columns: 460px 1fr 520px;
-    gap: 24px;
-    height: 1040px;
-    margin-bottom: 24px;
+    grid-template-columns: 480px 1fr 530px;
+    gap: 22px;
+    height: 1030px;
+    margin-bottom: 22px;
   }
 
-  /* 카드 공통 스타일 */
+  /* 섹션 카드 공통 */
   .section-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -158,7 +168,7 @@ html_content = """<!DOCTYPE html>
     display: flex;
     flex-direction: column;
     backdrop-filter: blur(16px);
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
     position: relative;
   }
 
@@ -173,36 +183,23 @@ html_content = """<!DOCTYPE html>
 
   .card-title {
     font-size: 18px;
-    font-weight: 700;
+    font-weight: 800;
     display: flex;
     align-items: center;
     gap: 10px;
   }
 
-  .card-title .icon-box {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-  }
-
-  .tag {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    padding: 4px 8px;
+  .host-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    font-weight: 800;
+    padding: 4px 10px;
     border-radius: 6px;
-    letter-spacing: 0.5px;
   }
 
-  /* 컬럼 1: 클라이언트 & 접근 계층 */
-  .col-access {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+  /* 1구역: 10번 pfSense 경계망 */
+  .col-pfsense {
+    border-top: 4px solid var(--ip-pfsense);
   }
 
   .node-block {
@@ -210,7 +207,7 @@ html_content = """<!DOCTYPE html>
     border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 16px;
-    position: relative;
+    margin-bottom: 14px;
     transition: all 0.2s ease;
   }
 
@@ -223,7 +220,7 @@ html_content = """<!DOCTYPE html>
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .node-title {
@@ -238,48 +235,40 @@ html_content = """<!DOCTYPE html>
     line-height: 1.5;
   }
 
-  .tech-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 10px;
-  }
-
-  .pill {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--text-secondary);
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  /* 네트워크 게이트웨이 & L3/L4 */
-  .gateway-banner {
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(99, 102, 241, 0.12));
-    border: 1px dashed rgba(56, 189, 248, 0.4);
-    border-radius: 12px;
-    padding: 14px;
-    text-align: center;
+  .pfsense-gateway-box {
     margin-top: auto;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(99, 102, 241, 0.15));
+    border: 1.5px solid rgba(56, 189, 248, 0.45);
+    border-radius: 12px;
+    padding: 16px;
   }
 
-  .gateway-banner h4 {
+  .pfsense-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .pfsense-title h4 {
     color: var(--accent-cyan);
-    font-size: 14px;
-    font-weight: 700;
-    margin-bottom: 4px;
+    font-size: 15px;
+    font-weight: 800;
   }
 
-  .gateway-banner p {
+  .pfsense-feature {
     font-size: 12px;
     color: var(--text-secondary);
+    line-height: 1.55;
   }
 
-  /* 컬럼 2: 코어 포털 & 비즈니스 모듈 (중앙 대형) */
+  .pfsense-feature b {
+    color: #FFF;
+  }
+
+  /* 2구역 & 3구역: 14번 포털 코어 */
   .col-core {
-    display: flex;
-    flex-direction: column;
+    border-top: 4px solid var(--ip-portal);
     gap: 16px;
   }
 
@@ -288,7 +277,7 @@ html_content = """<!DOCTYPE html>
     grid-template-columns: repeat(4, 1fr);
     gap: 12px;
     background: rgba(15, 23, 42, 0.9);
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    border: 1px solid rgba(52, 211, 153, 0.3);
     border-radius: 12px;
     padding: 12px;
   }
@@ -302,7 +291,7 @@ html_content = """<!DOCTYPE html>
 
   .shield-icon {
     font-size: 18px;
-    color: var(--accent-cyan);
+    color: var(--accent-emerald);
   }
 
   .shield-text b {
@@ -367,14 +356,23 @@ html_content = """<!DOCTYPE html>
     content: "•";
     position: absolute;
     left: 0;
-    color: var(--accent-blue);
+    color: var(--accent-emerald);
     font-weight: bold;
+  }
+
+  .pill {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
   }
 
   .ai-special-card {
     grid-column: span 2;
-    background: linear-gradient(135deg, rgba(88, 28, 135, 0.2), rgba(30, 58, 138, 0.25));
-    border: 1px solid rgba(192, 132, 252, 0.3);
+    background: linear-gradient(135deg, rgba(88, 28, 135, 0.25), rgba(30, 58, 138, 0.25));
+    border: 1px solid rgba(192, 132, 252, 0.35);
     border-radius: 12px;
     padding: 16px;
   }
@@ -387,11 +385,10 @@ html_content = """<!DOCTYPE html>
   }
 
   .ai-spec-box {
-    background: rgba(15, 23, 42, 0.6);
+    background: rgba(15, 23, 42, 0.65);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
     padding: 10px;
-    font-size: 12px;
   }
 
   .ai-spec-box h5 {
@@ -407,27 +404,25 @@ html_content = """<!DOCTYPE html>
     line-height: 1.4;
   }
 
-  /* 컬럼 3: DB & 격리 스토리지 계층 */
+  /* 3구역: 14번 호스트 DB & 격리 스토리지 */
   .col-storage {
-    display: flex;
-    flex-direction: column;
+    border-top: 4px solid var(--ip-portal);
     gap: 16px;
   }
 
   .db-isolation-card {
     background: var(--bg-card-inner);
-    border: 1px solid rgba(52, 211, 153, 0.25);
+    border: 1px solid rgba(52, 211, 153, 0.3);
     border-radius: 12px;
-    padding: 18px;
-    position: relative;
+    padding: 16px;
   }
 
   .db-schema-box {
-    background: rgba(15, 23, 42, 0.7);
+    background: rgba(15, 23, 42, 0.75);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 12px;
-    margin-top: 12px;
+    margin-top: 10px;
   }
 
   .db-schema-title {
@@ -439,9 +434,6 @@ html_content = """<!DOCTYPE html>
     margin-bottom: 6px;
   }
 
-  .schema-badge-green { color: var(--accent-emerald); font-size: 11px; font-weight: 600; }
-  .schema-badge-red { color: var(--accent-rose); font-size: 11px; font-weight: 600; }
-
   .schema-tables {
     font-family: 'JetBrains Mono', monospace;
     font-size: 11.5px;
@@ -449,16 +441,29 @@ html_content = """<!DOCTYPE html>
     line-height: 1.6;
   }
 
-  .file-storage-box {
-    background: var(--bg-card-inner);
-    border: 1px solid var(--border-color);
+  .agent-box {
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.3);
     border-radius: 12px;
-    padding: 16px;
+    padding: 14px;
+  }
+
+  .agent-box h4 {
+    color: var(--accent-blue);
+    font-size: 13.5px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .agent-box p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
   }
 
   .security-triggers-box {
     background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.25);
+    border: 1px solid rgba(239, 68, 68, 0.3);
     border-radius: 12px;
     padding: 14px;
     margin-top: auto;
@@ -469,9 +474,6 @@ html_content = """<!DOCTYPE html>
     font-size: 13.5px;
     font-weight: 700;
     margin-bottom: 6px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
   }
 
   .security-triggers-box ul {
@@ -493,41 +495,42 @@ html_content = """<!DOCTYPE html>
     font-size: 9px;
   }
 
-  /* 하단 전체 영역: AI-XDR 보안 관제 & SOAR 자동대응 파이프라인 */
-  .footer-pipeline {
-    background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(11, 15, 25, 0.98));
-    border: 1px solid rgba(56, 189, 248, 0.25);
+  /* 하단 전체: 15번 통합 관제 & SOAR 서버 */
+  .footer-soc-server {
+    background: linear-gradient(180deg, rgba(24, 18, 43, 0.95), rgba(13, 10, 26, 0.98));
+    border: 1.5px solid rgba(192, 132, 252, 0.4);
+    border-top: 4px solid var(--ip-soc);
     border-radius: 16px;
     padding: 20px 24px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
   }
 
-  .pipeline-header {
+  .soc-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 16px;
   }
 
-  .pipeline-title {
-    font-size: 17px;
+  .soc-title {
+    font-size: 18px;
     font-weight: 800;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     color: #FFF;
   }
 
-  .pipeline-steps {
+  .soc-pipeline {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 16px;
     position: relative;
   }
 
-  .pipeline-step {
-    background: rgba(30, 41, 59, 0.5);
-    border: 1px solid var(--border-color);
+  .soc-step {
+    background: rgba(30, 27, 54, 0.6);
+    border: 1px solid rgba(192, 132, 252, 0.25);
     border-radius: 12px;
     padding: 14px;
     position: relative;
@@ -535,26 +538,26 @@ html_content = """<!DOCTYPE html>
     flex-direction: column;
   }
 
-  .pipeline-step::after {
+  .soc-step::after {
     content: "➔";
     position: absolute;
     right: -14px;
     top: 50%;
     transform: translateY(-50%);
-    color: var(--accent-cyan);
+    color: var(--accent-purple);
     font-size: 18px;
     font-weight: 900;
     z-index: 10;
   }
 
-  .pipeline-step:last-child::after {
+  .soc-step:last-child::after {
     display: none;
   }
 
   .step-num {
     font-size: 11px;
     font-weight: 800;
-    color: var(--accent-cyan);
+    color: var(--accent-purple);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 4px;
@@ -577,29 +580,10 @@ html_content = """<!DOCTYPE html>
     color: #E2E8F0;
   }
 
-  /* 반응/상태 강조 태그 */
-  .tag-semi {
-    background: rgba(251, 191, 36, 0.15);
-    color: var(--accent-amber);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 10.5px;
-    font-weight: 700;
-  }
-
-  .tag-auto {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--accent-rose);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 10.5px;
-    font-weight: 700;
-  }
-
-  .footer-sub {
+  .soc-sub-footer {
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     justify-content: space-between;
     font-size: 12px;
@@ -609,55 +593,59 @@ html_content = """<!DOCTYPE html>
 </head>
 <body>
 
-  <!-- 헤더 영역 -->
+  <!-- 헤더 -->
   <header>
     <div class="header-left">
       <div class="brand-logo">NX</div>
       <div class="header-titles">
-        <h1><span class="highlight">NEXUS WORK</span> 엔터프라이즈 시스템 구조 & 차세대 보안 아키텍처</h1>
+        <h1><span class="highlight">NEXUS WORK</span> 3대 핵심 서버 분리 아키텍처 & 차세대 AI-XDR 보안 체계</h1>
         <p>
           <span>🌐 <b>플랫폼:</b> 사내 업무 포털 (ERP + 그룹웨어 + 전자결재 + 생성형 AI 어시스턴트)</span>
-          <span>🛡️ <b>프로젝트:</b> 실전 AI Agent 보안 방어전 (App & DB 완벽 하드닝 및 차세대 AI-XDR)</span>
-          <span>⚙️ <b>기술스택:</b> Python Flask · MySQL 8.4 (Docker) · Waitress WSGI · Socket.IO · Playwright</span>
+          <span>🛡️ <b>프로젝트:</b> 실전 AI Agent 보안 방어전 (App & DB 하드닝 및 하이브리드 능동 대응)</span>
         </p>
       </div>
     </div>
-    <div class="header-badges">
-      <div class="badge badge-emerald">● Zero Vulnerability Design</div>
-      <div class="badge badge-blue">● Dual DB Privilege Isolation</div>
-      <div class="badge badge-rose">● AI-XDR Hybrid SOAR Active Defense</div>
-      <div class="badge badge-amber">● Production Waitress WSGI</div>
+    
+    <!-- 3대 머신 IP 최상단 인프라 매핑 바 -->
+    <div class="machine-badges">
+      <div class="machine-item">
+        <span class="machine-ip-badge ip-10">192.168.3.10</span>
+        <span><b>경계 서버</b> (이시헌)</span>
+      </div>
+      <span class="machine-arrow">➔</span>
+      <div class="machine-item">
+        <span class="machine-ip-badge ip-14">192.168.3.14</span>
+        <span><b>포털·DB 서버</b> (홍주형)</span>
+      </div>
+      <span class="machine-arrow">➔</span>
+      <div class="machine-item">
+        <span class="machine-ip-badge ip-15">192.168.3.15</span>
+        <span><b>관제·SOAR 서버</b> (김태빈·진혜정)</span>
+      </div>
     </div>
   </header>
 
-  <!-- 상단/중단 3열 그리드 컨테이너 -->
+  <!-- 3열 본문 그리드 -->
   <div class="grid-container">
 
-    <!-- 1. 클라이언트 및 진입 계층 -->
-    <div class="section-card col-access">
+    <!-- 1. [192.168.3.10] 네트워크 경계 및 인프라 진입 계층 -->
+    <div class="section-card col-pfsense">
       <div class="card-header">
         <div class="card-title">
-          <div class="icon-box" style="background: rgba(56, 189, 248, 0.15); color: var(--accent-blue);">🖥️</div>
-          클라이언트 및 인프라 진입 계층
+          <span>🛡️ 네트워크 경계 서버</span>
         </div>
-        <span class="tag badge-blue">Layer 1: Edge & Ingress</span>
+        <span class="host-tag ip-10">HOST: 192.168.3.10</span>
       </div>
 
       <div class="node-block border-blue">
         <div class="node-header">
           <span class="node-title">웹 브라우저 사용자</span>
-          <span class="pill">HTTP/1.1 · HTTPS</span>
+          <span class="pill">Strict CSP</span>
         </div>
         <p class="node-desc">
-          사원/팀장/임원/관리자 웹 UI 접속.<br/>
-          엄격한 CSP(Content Security Policy) 적용으로 외부 스크립트·인라인 스타일 차단.
+          임직원 PC에서 포털 접속 시 192.168.3.10:5070 경유.<br/>
+          (포털 서버 14번 5070 직접 접속 차단 방화벽 강제)
         </p>
-        <div class="tech-pills">
-          <span class="pill">Chrome</span>
-          <span class="pill">Edge</span>
-          <span class="pill">Strict CSP</span>
-          <span class="pill">SameSite=Lax</span>
-        </div>
       </div>
 
       <div class="node-block border-indigo">
@@ -666,69 +654,50 @@ html_content = """<!DOCTYPE html>
           <span class="pill">REST + WebSocket</span>
         </div>
         <p class="node-desc">
-          Flutter 기반 데스크톱 & 모바일 메신저 클라이언트.<br/>
-          토큰 기반 인증(Bearer API Token) + Socket.IO 실시간 메시징 송수신.
+          Flutter 데스크톱 & 모바일 메신저 클라이언트.<br/>
+          토큰 기반 인증(Bearer API) + Socket.IO 실시간 연동.
         </p>
-        <div class="tech-pills">
-          <span class="pill">/api/v1/*</span>
-          <span class="pill">Socket.IO</span>
-          <span class="pill">Bearer Auth</span>
-        </div>
       </div>
 
       <div class="node-block border-rose">
         <div class="node-header">
-          <span class="node-title">외부 공격자 & 취약점 스캐너</span>
-          <span class="pill" style="color: var(--accent-rose);">Threat Vector</span>
+          <span class="node-title">외부 침투 공격자 (Kali Linux)</span>
+          <span class="pill" style="color: var(--accent-rose);">Threat Source</span>
         </div>
         <p class="node-desc">
-          SQLi, XSS, SSRF, 프롬프트 인젝션, 무차별 대입(Brute-force), L4 DoS 및 허니팟 경로 스캔 시도.
+          SQLi, XSS, 프롬프트 인젝션, 무차별 대입, 디코이 허니팟 경로 스캔 시도.
         </p>
-        <div class="tech-pills">
-          <span class="pill">Decoy Canaries</span>
-          <span class="pill">IP Rate Limit</span>
-          <span class="pill">Lockout 15min</span>
-        </div>
       </div>
 
-      <div class="node-block border-emerald">
-        <div class="node-header">
-          <span class="node-title">보안관제 센터 & 오케스트레이션</span>
-          <span class="pill">SOC / Admin</span>
+      <!-- pfSense 방화벽 핵심 역할 -->
+      <div class="pfsense-gateway-box">
+        <div class="pfsense-title">
+          <h4>pfSense L3/L4 경계 방화벽 & HAProxy</h4>
+          <span class="pill">이시헌 담당</span>
         </div>
-        <p class="node-desc">
-          Wazuh EDR, Graylog 로그 수집기, n8n SOAR 워크플로우 엔진, Discord 관제 채널 승인 인터페이스.
-        </p>
-        <div class="tech-pills">
-          <span class="pill">Graylog GELF</span>
-          <span class="pill">Wazuh FIM</span>
-          <span class="pill">n8n Webhook</span>
+        <div class="pfsense-feature">
+          • <b>단일 게이트웨이 강제:</b> 외부 모든 트래픽은 10번 포트 5070으로만 수신<br/>
+          • <b>SNAT 및 역방향 프록시:</b> 포털 14번 서버로 정제된 패킷 포워딩<br/>
+          • <b>Alias API 연동 차단:</b> n8n/AI-XDR 지시에 따라 공격 IP 실시간 드롭
         </div>
-      </div>
-
-      <div class="gateway-banner">
-        <h4>🛡️ pfSense L3/L4 경계 방화벽 & HAProxy</h4>
-        <p>192.168.3.10:5070 경유 접속만 강제 (직접 접속 5070 차단)<br/>
-        Alias API 연동을 통한 실시간 공격자 IP 블랙홀 드롭</p>
       </div>
     </div>
 
-    <!-- 2. 코어 애플리케이션 계층 (중앙) -->
+    <!-- 2. [192.168.3.14] 코어 애플리케이션 계층 (중앙 대형) -->
     <div class="section-card col-core">
       <div class="card-header">
         <div class="card-title">
-          <div class="icon-box" style="background: rgba(129, 140, 248, 0.15); color: var(--accent-indigo);">⚡</div>
-          NEXUS WORK 코어 서비스 계층 (Flask + Waitress WSGI)
+          <span>⚡ NEXUS WORK 포털 코어 서버 (Flask + Waitress WSGI)</span>
         </div>
-        <span class="tag badge-emerald">Layer 2: Core Application</span>
+        <span class="host-tag ip-14">HOST: 192.168.3.14 (포트 5070)</span>
       </div>
 
-      <!-- 상단 방어 쉴드 바 -->
+      <!-- 상단 하드닝 쉴드 바 -->
       <div class="sec-shield-bar">
         <div class="shield-item">
           <div class="shield-icon">🛡️</div>
           <div class="shield-text">
-            <b>AST 정적 SQL 파라미터화</b>
+            <b>AST 정적 SQL 바인딩</b>
             <span>SQL 인젝션 원천 차단</span>
           </div>
         </div>
@@ -743,7 +712,7 @@ html_content = """<!DOCTYPE html>
           <div class="shield-icon">🧹</div>
           <div class="shield-text">
             <b>RichText HTML Sanitizer</b>
-            <span>28종 태그/클래스 살균 XSS 방어</span>
+            <span>28종 태그 살균 XSS 방어</span>
           </div>
         </div>
         <div class="shield-item">
@@ -755,7 +724,7 @@ html_content = """<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- 모듈 그리드 -->
+      <!-- 핵심 비즈니스 모듈 -->
       <div class="modules-grid">
         <div class="module-card">
           <div class="module-header">
@@ -764,8 +733,8 @@ html_content = """<!DOCTYPE html>
           </div>
           <ul class="feature-list">
             <li>최대 5단계 순차 결재선 및 결재 의견/반려 사유 강제</li>
-            <li>지출결의서: 단가×수량 서버 검증 + 일금 한글 금액 위변조 방지</li>
-            <li>공문 양식 출력(@media print), 첨부파일 이력 단계별 관리</li>
+            <li>지출결의서: 단가×수량 서버 재연산 + 일금 한글 금액 위변조 방지</li>
+            <li>공문 양식 출력(@media print), 결재자별 단계별 첨부파일 보존</li>
             <li>종결 문서(승인/반려/철회) DB 행 락 및 상태 불변성 보장</li>
           </ul>
         </div>
@@ -778,8 +747,8 @@ html_content = """<!DOCTYPE html>
           <ul class="feature-list">
             <li>대시보드: 출퇴근 체크, 결재 대기 배지, 내 업무 요약</li>
             <li>공지사항 및 자유게시판: 이미지/PDF 안전 붙여넣기 및 미리보기</li>
-            <li>인사관리: 인사카드, 근태 현황, 연차/휴가 결재 연동</li>
-            <li>권한 매트릭스(사원/대리/과장/팀장/관리자) 세부 인가 통제</li>
+            <li>인사관리: 사원/대리/과장/팀장/관리자 5단계 RBAC 세부 인가 통제</li>
+            <li>침해 대응: blocked_ips 기반 실시간 403 차단 미들웨어</li>
           </ul>
         </div>
 
@@ -790,9 +759,9 @@ html_content = """<!DOCTYPE html>
           </div>
           <ul class="feature-list">
             <li>업무 관리(할일/진행/완료), 칸반 상태 전이, 프로젝트 진척률</li>
-            <li>월간 캘린더: 개인(비공개 관리자도 열람불가)/팀/전사 일정</li>
-            <li>30분 단위 회의실/비품 예약: 자원 행 락을 통한 중복 예약 원천 방지</li>
-            <li>자료실: 폴더형 4단계 구조, 버전 이력 및 다운로드 전용 서빙</li>
+            <li>월간 캘린더: 개인(비공개 관리자 열람불가)/팀/전사 일정 통제</li>
+            <li>30분 단위 회의실/비품 예약: 자원 행 락을 통한 동시성 중복 방지</li>
+            <li>자료실: 폴더형 4단계 구조, 파일 버전 이력 및 다운로드 전용 서빙</li>
           </ul>
         </div>
 
@@ -802,10 +771,10 @@ html_content = """<!DOCTYPE html>
             <span class="pill">app/admin.py / audit.py</span>
           </div>
           <ul class="feature-list">
-            <li>사용자 계정 생성 시 임시 비밀번호 1회 표시 (화면/로그 미저장)</li>
+            <li>사용자 생성 시 임시 비밀번호 1회 표시 (DB 해시만 저장)</li>
             <li>보안 대시보드: SVG 시계열 차트, 위협 지표 8종, IP/계정 랭킹</li>
-            <li>감사 로그 읽기 전용 스트림(4MB 상한) + CSV 공식 주입 방어 내보내기</li>
-            <li>최고관리자(admin, hongjh) DB 트리거 고정으로 권한 강등 원천 불가</li>
+            <li>감사 로그 읽기 스트림 + CSV 수식 주입 방어 내보내기</li>
+            <li>최고관리자(admin, hongjh) DB 트리거 영구 고정 (강등 불가)</li>
           </ul>
         </div>
 
@@ -817,153 +786,150 @@ html_content = """<!DOCTYPE html>
           </div>
           <div class="ai-spec-grid">
             <div class="ai-spec-box">
-              <h5>다중 LLM 프로바이더</h5>
+              <h5>다중 LLM 프로바이더 스위칭</h5>
               <p>Groq (Llama-3.3-70b 초고속 클라우드), Ollama (로컬 폐쇄망), Google Gemini 선택적 스위칭 지원</p>
             </div>
             <div class="ai-spec-box">
               <h5>Security Gateway 도구 호출 통제</h5>
-              <p>챗봇 권한은 사용자 권한 종속. Tool 호출 시 RBAC 재검증, 기밀문서 비인가 열람 및 유출 원천 차단</p>
+              <p>챗봇 권한은 사용자 권한 종속. Tool 호출 시 RBAC 재검증으로 기밀문서 비인가 열람 원천 차단</p>
             </div>
             <div class="ai-spec-box">
               <h5>프롬프트 인젝션 방어 & 격리</h5>
-              <p>시스템 프롬프트 탈취 시도 방어, 응답 HTML 비실행 이스케이프, 8,000자 상한 및 제어문자 제거</p>
+              <p>시스템 프롬프트 탈취 방어, 응답 HTML 비실행 이스케이프, 8,000자 상한 및 제어문자 필터링</p>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 3. 데이터 계층 & 격리 스토리지 (우측) -->
+    <!-- 3. [192.168.3.14] 로컬 호스트 DB & 격리 스토리지 (우측) -->
     <div class="section-card col-storage">
       <div class="card-header">
         <div class="card-title">
-          <div class="icon-box" style="background: rgba(52, 211, 153, 0.15); color: var(--accent-emerald);">🗄️</div>
-          데이터 계층 & 권한 격리 (MySQL 8.4)
+          <span>🗄️ 호스트 데이터 계층 (MySQL 8.4)</span>
         </div>
-        <span class="tag badge-emerald">Layer 3: Storage & DB</span>
+        <span class="host-tag ip-14">HOST: 192.168.3.14 (포트 3307)</span>
       </div>
 
       <div class="db-isolation-card">
-        <div class="node-title" style="color: var(--accent-emerald);">이중 데이터베이스 계정 권한 분리 (Dual-Privilege)</div>
-        <p class="node-desc" style="margin-top: 4px;">
-          최소 권한 원칙(Principle of Least Privilege)에 의거하여 기밀 데이터와 일반 비즈니스 데이터를 물리적 DB 권한 수준에서 엄격 격리.
-        </p>
-
+        <div class="node-title" style="color: var(--accent-emerald);">이중 DB 계정 권한 물리적 분리 (Dual-Privilege)</div>
+        
         <div class="db-schema-box">
           <div class="db-schema-title">
             <span>🔹 nexus_app (일반 비즈니스 계정)</span>
-            <span class="schema-badge-green">SELECT · INSERT · 한정적 UPDATE</span>
+            <span class="pill" style="color: var(--accent-emerald);">한정적 UPDATE</span>
           </div>
           <div class="schema-tables">
-            users, employees, documents, posts, approvals, tasks, events, reservations, library, chat_messages, messenger_messages
+            users, employees, documents, posts, approvals, tasks, events, reservations, library, chat_messages
           </div>
         </div>
 
-        <div class="db-schema-box" style="border-color: rgba(251, 113, 133, 0.3);">
+        <div class="db-schema-box" style="border-color: rgba(251, 113, 133, 0.35);">
           <div class="db-schema-title">
             <span>🔒 nexus_conf (기밀 전용 계정)</span>
-            <span class="schema-badge-red">STRICT READ-ONLY (SELECT Only)</span>
+            <span class="pill" style="color: var(--accent-rose);">STRICT READ-ONLY</span>
           </div>
           <div class="schema-tables">
             confidential_documents, salaries, financial_reports<br/>
-            ※ 팀장/관리자 인가 성공 시에만 세션 한정 격리 쿼리 실행
+            ※ 팀장/관리자 인가 성공 시에만 세션 한정 격리 쿼리
           </div>
         </div>
       </div>
 
-      <div class="file-storage-box">
-        <div class="node-title" style="color: var(--accent-blue);">웹루트 외 격리 파일 스토리지</div>
-        <p class="node-desc" style="margin-top: 6px;">
-          • 저장 경로: <code style="color: var(--accent-cyan);">instance/uploads/</code> (웹 직접 접근 불가)<br/>
-          • 파일명: 무작위 UUID 변환 저장으로 Path Traversal 방어<br/>
-          • 서빙 정책: Content-Disposition attachment 강제, 이미지/PDF 전용 격리 CSP 서빙
+      <!-- Wazuh Agent 박스 -->
+      <div class="agent-box">
+        <h4>📡 Wazuh Agent (nexus-board-14)</h4>
+        <p>
+          • 14번 호스트의 <code>app/</code>, <code>scripts/</code>, <code>.env</code> 파일 무결성(FIM) 실시간 감시<br/>
+          • <code>logs/security.jsonl</code> 보안 이벤트를 15번 매니저로 암호화 전송 (TCP 1514)
         </p>
       </div>
 
       <div class="security-triggers-box">
         <h4>🚨 DB 무결성 보호 트리거 (Database Triggers)</h4>
         <ul>
-          <li><b>trg_users_pin_insert / update:</b> 최고관리자(admin, hongjh) 계정의 강등, 잠금, 삭제 원천 차단 (Root 계정도 수정 불가)</li>
-          <li><b>trg_approvals_self_approve:</b> 기안자 본인의 셀프 결재 승인 DB 레벨 차단</li>
-          <li><b>Check Constraints:</b> 결재 문서 종결 불변성, 지출 금액 양수 검증</li>
+          <li><b>trg_users_pin_insert / update:</b> 최고관리자(admin, hongjh) 강등/잠금/삭제 차단</li>
+          <li><b>trg_approvals_self_approve:</b> 기안자 셀프 결재 승인 DB 레벨 차단</li>
+          <li><b>Check Constraints:</b> 결재 상태 불변성, 지출 금액 양수 검증</li>
         </ul>
       </div>
     </div>
 
   </div>
 
-  <!-- 하단 전체: AI-XDR 보안 관제 & 하이브리드 대응 파이프라인 -->
-  <div class="footer-pipeline">
-    <div class="pipeline-header">
-      <div class="pipeline-title">
-        <span>🛡️ NEXUS AI-XDR 실시간 관제 및 하이브리드 능동 대응 파이프라인 (Hybrid SOC Workflow)</span>
+  <!-- 하단 전체: [192.168.3.15] 통합 관제 & SOAR 서버 -->
+  <div class="footer-soc-server">
+    <div class="soc-header">
+      <div class="soc-title">
+        <span>🛡️ 통합 보안관제 & AI-XDR SOAR 서버 (Wazuh Manager · Graylog · n8n)</span>
+        <span class="host-tag ip-15">HOST: 192.168.3.15 (김태빈 담당 · 진혜정 연동)</span>
       </div>
       <div style="display: flex; gap: 10px;">
-        <span class="tag-semi">주간 (08~20시): 반자동 Human-in-the-Loop</span>
-        <span class="tag-auto">야간 (20~08시): 완전 자동 Zero-Touch</span>
+        <span class="pill" style="color: var(--accent-amber); border-color: rgba(251, 191, 36, 0.4);">주간 (08~20시): Discord 승인형 반자동</span>
+        <span class="pill" style="color: var(--accent-rose); border-color: rgba(239, 68, 68, 0.4);">야간 (20~08시): 80점+ 완전 자동 격리</span>
       </div>
     </div>
 
-    <div class="pipeline-steps">
+    <div class="soc-pipeline">
       <!-- 1단계 -->
-      <div class="pipeline-step">
-        <span class="step-num">Step 1. Telemetry Ingestion</span>
+      <div class="soc-step">
+        <span class="step-num">Step 1. Telemetry Ingest</span>
         <span class="step-name">실시간 텔레메트리 수집</span>
         <div class="step-content">
-          • <b>pfSense:</b> 방화벽 허용/차단 패킷 & HAProxy 로그<br/>
-          • <b>NEXUS App:</b> 보안 로그(JSON Lines GELF 실시간 전송)<br/>
-          • <b>Wazuh Agent:</b> 웹루트 및 핵심 설정 파일 FIM 감시
+          • <b>pfSense (10번):</b> Syslog 패킷 로그 수집<br/>
+          • <b>NEXUS App (14번):</b> GELF(UDP 12201) 웹 로그 전송<br/>
+          • <b>Wazuh Agent (14번):</b> 코드 FIM diff 전송 (TCP 1514)
         </div>
       </div>
 
       <!-- 2단계 -->
-      <div class="pipeline-step">
-        <span class="step-num">Step 2. Fast Rule Filtering</span>
+      <div class="soc-step">
+        <span class="step-num">Step 2. Fast Filter</span>
         <span class="step-name">룰셋 1차 고속 필터링</span>
         <div class="step-content">
-          • <b>Graylog Stream:</b> 룰셋 R1~R12 기반 이벤트 분류<br/>
-          • <b>로그인 무차별 대입:</b> 5회 이상 실패 탐지 (R1/R5)<br/>
-          • <b>디코이 센서:</b> /.env 및 허니팟 접근자 즉시 선별
+          • <b>Graylog Streams:</b> 룰셋 R1~R12 기반 시그니처 분류<br/>
+          • <b>무차별 대입 탐지:</b> 5회 이상 실패 계정 선별 (R1/R5)<br/>
+          • <b>디코이 허니팟:</b> /.env 및 비인가 경로 탐색 태깅
         </div>
       </div>
 
       <!-- 3단계 -->
-      <div class="pipeline-step">
+      <div class="soc-step">
         <span class="step-num">Step 3. AI Deep Triage</span>
         <span class="step-name">AI 심층 위협 판정 엔진</span>
-        <div class="step-content">
+        <div class="soc-content">
           • <b>Groq / Ollama LLM:</b> 공격 킬체인 및 행위 문맥 분석<br/>
-          • <b>정상 오탐 배제:</b> 단순 오타/정상 네트워크 오류 필터링<br/>
+          • <b>오탐(False Positive) 배제:</b> 정상 오타 및 네트워크 오류 제외<br/>
           • <b>위협 점수 산출:</b> 0~100 Threat Score 및 대응 권고
         </div>
       </div>
 
       <!-- 4단계 -->
-      <div class="pipeline-step">
-        <span class="step-num">Step 4. Hybrid Time Gate</span>
+      <div class="soc-step">
+        <span class="step-num">Step 4. Time Gate & SOAR</span>
         <span class="step-name">시간대별 대응 모드 분기</span>
         <div class="step-content">
-          • <b>주간 (08~20시):</b> Discord 승인형 티켓 발송 (1클릭 승인)<br/>
-          • <b>야간/부재 (20~08시):</b> 80점 이상 위협 즉시 자동 격리<br/>
-          • <b>n8n SOAR:</b> 상태 추적 및 이벤트 오케스트레이션
+          • <b>주간:</b> Discord 관제 채널 승인형 티켓 (1클릭 승인)<br/>
+          • <b>야간/주말:</b> 80점 이상 위협 즉시 자동 격리 트리거<br/>
+          • <b>n8n SOAR:</b> 워크플로우 상태 추적 및 실행 오케스트레이션
         </div>
       </div>
 
       <!-- 5단계 -->
-      <div class="pipeline-step">
-        <span class="step-num">Step 5. Multi-Tier Response</span>
+      <div class="soc-step">
+        <span class="step-num">Step 5. Active Response</span>
         <span class="step-name">다계층 통합 능동 차단</span>
         <div class="step-content">
-          • <b>pfSense L3/L4:</b> 방화벽 Alias API로 IP 즉시 블랙홀 차단<br/>
-          • <b>NEXUS Web:</b> blocked_ips 등록 및 활성 세션 즉시 만료<br/>
-          • <b>Wazuh EDR:</b> 감염/악성 프로세스 강제 종료 및 격리
+          • <b>pfSense (10번):</b> 방화벽 Alias API로 L3/L4 IP 영구 차단<br/>
+          • <b>NEXUS Web (14번):</b> blocked_ips 자동 등록 & 세션 즉시 파기<br/>
+          • <b>Wazuh Manager (15번):</b> 침해 호스트 프로세스 강제 종료
         </div>
       </div>
     </div>
 
-    <div class="footer-sub">
-      <span>Designed by NEXUS WORK Security & Architecture Team (Role A 홍주형)</span>
-      <span>Enterprise Architecture Specification v2.0 • Confidential & Defense Ready</span>
+    <div class="soc-sub-footer">
+      <span>NEXUS WORK 3-Tier Enterprise Infrastructure Architecture (10번 경계망 ➔ 14번 포털·DB ➔ 15번 통합 관제)</span>
+      <span>Enterprise Architecture Specification v2.1 • Confidential & Defense Ready</span>
       <span>Validated with 1,200+ Automated Tests & Zero Hardening Bypass</span>
     </div>
   </div>
@@ -981,14 +947,21 @@ print(f"HTML written to {temp_html_path}")
 edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 out_img_path = os.path.abspath("NEXUS_WORK_시스템_아키텍처_구조도.png")
 docs_img_path = os.path.abspath(r"docs\NEXUS_WORK_시스템_아키텍처_구조도.png")
+docs_html_path = os.path.abspath(r"docs\NEXUS_WORK_시스템_아키텍처_구조도.html")
+
+with open(docs_html_path, "w", encoding="utf-8") as f:
+    f.write(html_content)
 
 with sync_playwright() as p:
     browser = p.chromium.launch(executable_path=edge_path)
     page = browser.new_page(viewport={"width": 2400, "height": 1650}, device_scale_factor=1.5)
     page.goto(f"file:///{temp_html_path}")
-    page.wait_for_timeout(1000)  # 폰트 렌더링 대기
+    page.wait_for_timeout(1000)
     page.screenshot(path=out_img_path, full_page=True)
     page.screenshot(path=docs_img_path, full_page=True)
     browser.close()
 
-print(f"Images created:\n- {out_img_path}\n- {docs_img_path}")
+if os.path.exists(temp_html_path):
+    os.remove(temp_html_path)
+
+print(f"Images & HTML updated successfully:\n- {out_img_path}\n- {docs_img_path}\n- {docs_html_path}")
