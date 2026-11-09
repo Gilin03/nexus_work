@@ -1,0 +1,12 @@
+-- Apply only on a fresh local clone DB, never on the source/production DB.
+-- Replace the placeholder with a unique local password before executing.
+CREATE USER IF NOT EXISTS 'nexus_n8n_local'@'%' IDENTIFIED BY 'REPLACE_WITH_A_UNIQUE_LOCAL_SECRET';
+
+GRANT SELECT, INSERT, UPDATE ON `nexus`.security_incident_tickets
+  TO 'nexus_n8n_local'@'%';
+GRANT SELECT, INSERT, UPDATE ON `nexus`.security_incident_alerts
+  TO 'nexus_n8n_local'@'%';
+GRANT SELECT, INSERT, UPDATE ON `nexus`.security_discord_rate_limit
+  TO 'nexus_n8n_local'@'%';
+
+-- No DELETE, DDL, global privileges, or access to other databases/tables.

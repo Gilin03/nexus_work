@@ -1,0 +1,138 @@
+{
+  "source_graylog_version": "6.1.16+4a05695",
+  "notifications": [
+    {
+      "event_definition": "[NEXUS][R10] 기밀 문서 직접 접근 거부",
+      "notification_title": "[NEXUS][R10] n8n 전달",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R11] AI Tool 권한 거부 반복",
+      "notification_title": "NEXUS R11 n8n Webhook",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R12] 간접 문서 유발 보호 Tool 거부",
+      "notification_title": "NEXUS R12 n8n Webhook",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R1] 계정 침해 의심",
+      "notification_title": "[NEXUS][R1] n8n 전달",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R2] 직접 Prompt Injection 차단",
+      "notification_title": "NEXUS R2 dry-run n8n Webhook",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R3] AI Tool 권한 거부",
+      "notification_title": "NEXUS R3 n8n Webhook",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R4] 내부 API 권한 거부",
+      "notification_title": "[NEXUS][R4] n8n 전달",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R5] 계정 스프레이",
+      "notification_title": "[NEXUS][R5] n8n 전달",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R6] 잠금 후 로그인 재시도",
+      "notification_title": "[NEXUS][R6] n8n 전달",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R7] 심야 로그인 성공",
+      "notification_title": "[NEXUS][R7] n8n 전달",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R8] 404 경로 스캔",
+      "notification_title": "[NEXUS][R8] n8n 전달",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    },
+    {
+      "event_definition": "[NEXUS][R9] 관리자 권한 접근 거부",
+      "notification_title": "[NEXUS][R9] n8n 전달",
+      "notification_type": "http-notification-v2",
+      "method": "POST",
+      "target_template": "http://<N8N_HOST>:5678/webhook/nexus-alert",
+      "auth_configured": true,
+      "content_type": "JSON",
+      "custom_body_present": true,
+      "secret_values_omitted": true
+    }
+  ],
+  "note": "Notification credentials/headers/body values and Graylog object IDs are intentionally omitted; recreate notification objects and attach them after import."
+}

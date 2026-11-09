@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "streams": [
+    {
+      "title": "NEXUS_AUTH",
+      "description": "계정 침해와 인증 이상 행위 탐지 (R1, R5, R6, R7)",
+      "matching_type": "OR",
+      "index_set_selector": {
+        "title": "Default index set",
+        "use_default_if_missing": true
+      },
+      "disabled": false,
+      "remove_matches_from_default_stream": false,
+      "rules": [
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "login_success"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "account_locked"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "login_failure"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "account_compromise_suspected"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "login_locked"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "post_lock_retry_detected"
+        }
+      ]
+    },
+    {
+      "title": "NEXUS_WEB",
+      "description": "웹 권한 위반, 비정상 경로 접근 및 uploads FIM 확인 (R8, R9, R10)",
+      "matching_type": "OR",
+      "index_set_selector": {
+        "title": "Default index set",
+        "use_default_if_missing": true
+      },
+      "disabled": false,
+      "remove_matches_from_default_stream": false,
+      "rules": [
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "not_found"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "authz_deny"
+        },
+        {
+          "field": "gl2_source_input",
+          "type": 1,
+          "inverted": false,
+          "input_ref": "wazuh_raw_udp"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "confidential_access"
+        }
+      ]
+    },
+    {
+      "title": "NEXUS_AI_SECURITY",
+      "description": "Prompt Injection 및 AI Tool 권한 남용 탐지 (R2, R3, R4, R11, R12)",
+      "matching_type": "OR",
+      "index_set_selector": {
+        "title": "Default index set",
+        "use_default_if_missing": true
+      },
+      "disabled": false,
+      "remove_matches_from_default_stream": false,
+      "rules": [
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "agent_tool_call"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "content_ingested"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "ai_content_read"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "internal_api_call"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "prompt_injection_observed"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "prompt_injection_detected"
+        },
+        {
+          "field": "event_type",
+          "type": 1,
+          "inverted": false,
+          "value": "internal_api"
+        }
+      ]
+    }
+  ]
+}

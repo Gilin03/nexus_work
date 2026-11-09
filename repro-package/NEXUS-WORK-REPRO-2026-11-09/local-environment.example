@@ -1,0 +1,20 @@
+# NEXUS WORK 로컬 재현용 예시. 실제 키/비밀번호를 넣은 파일은 공유하지 마세요.
+MYSQL_ROOT_PASSWORD=<set-a-new-local-secret>
+NEXUS_APP_PASSWORD=<set-a-new-local-secret>
+NEXUS_CONF_PASSWORD=<set-a-new-local-secret>
+NEXUS_N8N_LOCAL_DB_PASSWORD=<set-a-separate-local-secret>
+LAB_INTERNAL_API_TOKEN=<set-a-local-token>
+DB_HOST=127.0.0.1
+DB_PORT=3308
+DB_BIND=127.0.0.1
+DB_NAME=nexus
+APP_HOST=127.0.0.1
+APP_PORT=5070
+COOKIE_SECURE=0
+GRAYLOG_GELF_ENABLED=1
+GRAYLOG_GELF_HOST=127.0.0.1
+GRAYLOG_GELF_PORT=12201
+GRAYLOG_API_TOKEN=<create-a-local-graylog-api-token>
+GROQ_API_KEY=<enter-your-own-key-locally>
+GROQ_MODEL=openai/gpt-oss-120b
+# XDR_AI_PROVIDER is unset in this local setup; the application default is auto.

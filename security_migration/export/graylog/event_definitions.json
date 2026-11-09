@@ -771,7 +771,8 @@
         "stream_categories": [],
         "group_by": [
           "user",
-          "path"
+          "path",
+          "src_ip"
         ],
         "series": [
           {
@@ -823,11 +824,22 @@
               "require_values": false
             }
           ]
+        },
+        "src_ip": {
+          "data_type": "string",
+          "providers": [
+            {
+              "type": "template-v1",
+              "template": "${source.src_ip}",
+              "require_values": false
+            }
+          ]
         }
       },
       "key_spec": [
         "user",
-        "path"
+        "path",
+        "src_ip"
       ],
       "notification_settings": {
         "grace_period_ms": 15000,
@@ -861,7 +873,8 @@
         "group_by": [
           "user",
           "path",
-          "resource"
+          "resource",
+          "src_ip"
         ],
         "series": [
           {
@@ -923,12 +936,23 @@
               "require_values": false
             }
           ]
+        },
+        "src_ip": {
+          "data_type": "string",
+          "providers": [
+            {
+              "type": "template-v1",
+              "template": "${source.src_ip}",
+              "require_values": false
+            }
+          ]
         }
       },
       "key_spec": [
         "user",
         "path",
-        "resource"
+        "resource",
+        "src_ip"
       ],
       "notification_settings": {
         "grace_period_ms": 15000,
