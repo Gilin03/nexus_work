@@ -79,3 +79,13 @@ GRANT SELECT ON `__DB__`.financial_reports      TO 'nexus_conf'@'%';
 
 -- IP 차단 목록 (보안 관제 및 n8n 대응)
 GRANT SELECT, INSERT, UPDATE, DELETE ON __DB__.blocked_ips TO 'nexus_app'@'%';
+
+-- Incident / AI-XDR: 앱은 기존 Ticket과 평가를 조회하고 상태·분석 결과를 기록한다.
+-- 테이블 삭제 권한과 DDL 권한은 부여하지 않는다.
+GRANT SELECT, INSERT, UPDATE ON `__DB__`.security_incident_tickets TO 'nexus_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON `__DB__`.security_xdr_events TO 'nexus_app'@'%';
+GRANT SELECT, INSERT, UPDATE ON `__DB__`.security_xdr_assessments TO 'nexus_app'@'%';
+
+-- n8n Ticket DB 계정(nexus_n8n_local)은 로컬 복제 DB에서 별도로 생성한다.
+-- security_incident_tickets / security_incident_alerts / security_discord_rate_limit에만
+-- SELECT, INSERT, UPDATE를 부여하고, 비밀번호는 이 파일에 기록하지 않는다.
