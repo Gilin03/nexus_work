@@ -1,78 +1,69 @@
 # 실행과 재현
 
-## 재현 범위
+## 로컬 포털과 MySQL 실행
 
-저장소의 로컬 재현 패키지는 포털과 격리 MySQL, 기존 Graylog·n8n 연결 자료를 포함합니다. Graylog, n8n, Wazuh, Suricata, pfSense 전체를 새 PC에 설치하는 완전한 VM 이미지는 아닙니다.
-
-다른 PC에서의 전체 재현은 이 문서 작성 시점에 실행하지 않았습니다.
-
-## 포털과 복제 MySQL
-
-현재 로컬 구성의 근거는 [재현 package README](../../repro-package/NEXUS-WORK-REPRO-2026-11-09/README.md)와 [local Compose](../../docker-compose.local.yml)입니다.
-
-일반적인 준비 순서:
-
-1. Python, Docker를 준비하고 프로젝트 의존성을 설치합니다.
-2. .env.example을 참고해 로컬 .env를 만들고 각자 생성한 MySQL root/app/conf 암호와 SECRET_KEY를 입력합니다. 격리 Compose를 사용할 때는 `DB_HOST=127.0.0.1`, `DB_PORT=3308`을 설정합니다. 연동을 실제로 구성할 때만 해당 시스템의 주소와 별도 credential을 추가합니다. 기존 키나 팀 자격 증명을 복사하지 않습니다.
-3. 복제 MySQL만 별도 Compose로 시작합니다.
+이 저장소는 Flask 포털과 격리형 MySQL 개발 구성을 제공합니다. Windows PowerShell 기준으로 프로젝트 루트에서 실행합니다.
 
 ~~~powershell
+Copy-Item .env.example .env
+# .env에 로컬 전용 SECRET_KEY와 DB 계정 값을 입력하고 DB_PORT=3308 설정
 docker compose -f docker-compose.local.yml up -d
-~~~
-
-4. Python 가상 환경을 준비한 뒤 Flask 포털을 시작합니다.
-
-~~~powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 python run.py
 ~~~
 
-이 저장소의 격리 Compose 기준으로 MySQL은 호스트 `127.0.0.1:3308`에만 바인딩되고 컨테이너 내부 포트는 3307입니다. Flask 설정은 `.env`의 `DB_HOST=127.0.0.1`, `DB_PORT=3308`을 사용하고 포털 기본 주소는 `http://127.0.0.1:5070`입니다. 이 값은 해당 로컬 재현 구성의 기준이며 다른 PC의 운영 주소로 사용하지 않습니다. MySQL을 전체 네트워크 인터페이스에 공개하지 않습니다.
+포털 기본 주소는 http://127.0.0.1:5070이며, Compose MySQL은 호스트의 127.0.0.1:3308에 바인딩됩니다. 로컬 실행에 필요한 값과 외부 연동 주소는 각 PC 환경에 맞게 설정합니다. 비밀값은 로컬 .env에서 관리하며 저장소나 재현 패키지에 넣지 않습니다.
 
-테스트를 실행할 때는 로컬 DB와 Python 의존성을 준비한 뒤 `python -m pytest -q`를 사용합니다. DB 의존 테스트는 초기화된 로컬 테스트 환경이 필요할 수 있습니다. 이번 문서 정리에서는 테스트를 실행하지 않았습니다.
+테스트를 실행하려면 로컬 DB와 Python 의존성을 준비한 뒤 다음을 사용합니다.
 
-## Graylog
+~~~powershell
+python -m pytest -q
+~~~
 
-재현 패키지의 Graylog 자료는 이미 실행 중인 Graylog를 대상으로 설정을 비교·적용하는 도구입니다.
+## 로그 관제 환경
 
-- 먼저 package의 안내를 읽고 DryRun을 실행합니다.
-- 충돌이 나오면 기존 Input, Stream, Event Definition을 변경하거나 덮어쓰지 말고 원인을 확인합니다.
-- 현재 PC에서는 기존 Event Definition과의 충돌이 보고되어 Apply하지 않았습니다.
-- 다른 PC의 충돌 여부는 그 PC에서 DryRun하기 전까지 알 수 없습니다.
-- 저장소 기본 export 8개, 재현 패키지 13개는 서로 다른 snapshot입니다.
+Flask와 MySQL은 이 저장소에서 실행할 수 있습니다. Graylog, n8n, Wazuh, Suricata, pfSense는 별도 서비스·호스트·네트워크 장비로 구성합니다.
 
-세부 절차: [Graylog 쉬운 적용 안내](../../repro-package/NEXUS-WORK-REPRO-2026-11-09/graylog/README.md)
+- Wazuh 적용 자료는 security_migration/export/wazuh/와 security_migration/scripts/에 있습니다.
+- Graylog Input, Stream, Event Definition과 import/export 스크립트는 security_migration/에 있습니다.
+- n8n workflow JSON과 환경별 적용 설명은 repro-package 아래에 있습니다.
+- API credential과 provider key는 재현 환경에서 별도 등록합니다.
 
-## n8n
+## 최종 운영 환경과 재현 snapshot
 
-- 최종 시연 환경은 Published workflow를 사용했다는 운영자 제공 정보입니다.
-- 현재 패키지의 66-node workflow는 credential과 static execution state가 빠진 비활성 재현 template입니다.
-- 이미 사용 중인 n8n에 template을 중복 import하거나 기존 workflow를 활성화하지 않습니다.
-- 새 재현 환경에서만 비활성 상태로 가져와 endpoint와 별도 credential을 등록하고, 안전한 테스트를 마친 뒤 운영자 검토를 받습니다.
-- package와 README에는 n8n credential, token, Groq key, DB dump가 포함되지 않습니다.
+최종 시연 환경에서는 Graylog R1–R12 12개 규칙을 운영했고 n8n workflow는 Published 상태였습니다. 저장소 안의 export와 재현 package는 설정을 다른 환경으로 옮기기 위한 별도 snapshot입니다.
 
-세부 절차: [n8n 쉬운 안내](../../repro-package/NEXUS-WORK-REPRO-2026-11-09/n8n/README.md)
+Graylog 기본 export에는 8개 Event Definition이 있고, 재현 package에는 OBS 항목을 포함한 13개 정의가 들어 있습니다. 두 snapshot은 최종 운영 R1–R12 설정과 같은 시점의 사본이 아닙니다.
 
-## 저장된 시나리오와 안전 조건
+n8n도 같은 원칙으로 구분합니다. 최종 시연 workflow는 Published 상태로 실행했고, 재현 package의 66-node workflow는 credential과 실행 상태를 제외한 비활성 template입니다. 이는 운영 workflow의 상태를 나타내지 않습니다. 새 n8n 환경에서만 template을 가져와 주소·credential을 등록한 뒤 별도 확인합니다.
 
-2026-11-09 package manifest에는 TEST-NET 기반 R8 합성 404 시나리오가 기록돼 있습니다. Graylog R8 Event, n8n Ticket 처리, AI-XDR /events·/process, assessment 저장까지 연결됐고 실제 IP 차단·계정 잠금은 없었습니다.
+## AI-XDR provider
 
-이 기록은 특정 PC의 한 실행입니다. 전체 R1–R12 재현, 다른 PC 호환성, pfSense 실차단을 보장하지 않습니다. AI-XDR provider 선택은 실행 환경의 XDR_AI_PROVIDER와 API key/model 설정에 따라 달라집니다.
+최종 AI-XDR provider 설정은 auto이며 Groq를 우선 시도하고 NVIDIA와 Ollama를 fallback으로 사용합니다. 실행별 provider와 model은 가용 설정과 호출 결과에 따라 달라집니다. AI Chat은 별도의 provider 설정을 사용합니다.
 
-## 공개 전 남은 확인
+## 재현할 때 필요한 외부 조건
 
-- repository 전체와 Git history에서 credential/secret 검사
-- 기존 내부 IP, 계정명, local paths, Ticket/assessment IDs 포함 파일 검토
-- docs/evidence 캡처와 오래된 아키텍처 이미지의 공개 범위 검토
-- VULN-FINDINGS 원문과 개인/팀 작업 기록의 공개 제외 또는 안전한 요약
-- 다른 PC에서 Graylog DryRun과 비활성 n8n template 연결 절차 검증
-- pfSense Alias·Rule, feed 갱신, 만료·해제의 테스트망 실증
+- Graylog Input, Stream, Event Definition과 Notification을 대상 Graylog에 맞게 설정합니다.
+- n8n에서 webhook endpoint, 내부 API 주소, Ticket DB 연결과 credentials를 새 환경에 등록합니다.
+- Wazuh Agent/Manager의 로그 경로와 syslog 전달 대상을 해당 호스트망에 맞춥니다.
+- Suricata 로그를 사용할 경우 실제 수집 경로와 Graylog 입력을 설정합니다.
+- pfSense 연동은 feed, Alias, Firewall Rule과 갱신 주기를 별도 장비에 구성합니다.
+- Groq·NVIDIA 등의 API key와 DB password는 실행 환경의 secret store 또는 로컬 환경변수로 관리합니다.
 
-이번 단계에서는 비밀값을 읽거나 출력하지 않았고, 운영 Graylog/n8n에 요청을 보내지 않았습니다.
+## 실제 범위와 개선 지점
 
-## 증거 파일과 코드
+현재 Incident 상세는 Ticket의 latest_event와 Ticket API가 제공하는 알림 자료를 중심으로 표시합니다. 별도 원본 이벤트 테이블의 모든 로그를 펼친 완전한 시간순 timeline은 제공하지 않습니다.
 
-- [재현 패키지](../../repro-package/NEXUS-WORK-REPRO-2026-11-09/)
-- [Flask 실행 entry point](../../run.py)
-- [local MySQL Compose](../../docker-compose.local.yml)
+pfSense feed와 앱의 blocked IP 관리 기능은 연동 기반을 제공하지만, 실제 네트워크 정책은 대상 pfSense의 Alias·Firewall Rule 구성과 장비 측 검증이 필요합니다. 재현 package를 새 PC에 적용할 때도 Graylog의 기존 설정 충돌을 먼저 확인하고 n8n workflow를 중복 활성화하지 않아야 합니다.
+
+## 실행 및 설정 자료
+
+- [로컬 MySQL Compose](../../docker-compose.local.yml)
+- [환경 변수 예시](../../.env.example)
 - [DB schema](../../db/schema.sql)
-- [DB grants](../../db/grants.sql)
+- [DB 권한 스크립트](../../db/grants.sql)
+- [Graylog·Wazuh migration 자료](../../security_migration/)
+- [재현 패키지 안내](../../repro-package/NEXUS-WORK-REPRO-2026-11-09/README.md)
+- [R8 E2E manifest](../../repro-package/NEXUS-WORK-REPRO-2026-11-09/manifest.json)

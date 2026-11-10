@@ -1,67 +1,79 @@
-# 프로젝트와 기여 범위
+# 프로젝트와 개인 기여
 
 ## 프로젝트 배경
 
-사내 업무 포털, AI Agent, 호스트와 웹 서비스에서는 로그인 실패, 권한 거부, Tool 실행, 웹 요청 같은 보안 신호가 서로 다른 형태로 발생합니다. 개별 로그만 보면 서로 관련된 행동인지 판단하기 어렵고, 경보가 생성된 뒤 실제 검토와 대응 기록까지 이어지는 과정도 분산될 수 있습니다.
-
-NEXUS WORK는 이 흐름을 사건 단위로 이어 주는 4인 팀 프로젝트입니다.
+업무 포털, 호스트, AI Agent에서는 로그인·권한 거부·Tool 실행·웹 요청 등 서로 다른 보안 신호가 발생합니다. NEXUS WORK는 이 로그를 중앙 탐지에 모으고, 연관 경보를 Ticket과 AI-XDR 평가로 연결해 관리자가 분석 결과와 대응 상태를 확인할 수 있게 만든 4인 팀 프로젝트입니다.
 
 ~~~text
-보안 이벤트 → 규칙 탐지 → Ticket 연결 → AI-XDR 평가
-            → 관리자 검토 → 대응 결과와 Incident 이력
+포털·호스트 로그 → Graylog 탐지 → n8n Ticket 처리
+                → AI-XDR 평가·정책 → 관리자 검토·대응 이력
 ~~~
 
-목표는 AI가 자동으로 차단하는 데 있지 않습니다. 규칙 탐지, 사건 맥락 분석, 서버 정책, 관리자 판단을 분리해 결과를 확인하고 추적할 수 있도록 하는 것입니다.
+핵심 설계는 규칙 탐지, AI 분석, 서버 정책, 관리자 대응을 단계별로 분리한 것입니다. AI-XDR은 위험도와 권고를 제공하고, 실제 대응은 시스템 정책과 승인 절차를 거칩니다.
 
-## 팀 결과와 개인 기여
+## 팀 결과와 김태빈의 담당
 
-| 구분 | 범위 | 표현 기준 |
+| 영역 | 팀 프로젝트 결과 | 김태빈의 담당 및 기여 |
 |---|---|---|
-| 팀 프로젝트 결과 | Flask 업무 포털, MySQL, AI Assistant, 인증·인가, 관리자 기능과 보안 이벤트 흐름 | 저장소의 여러 모듈과 설정에 걸친 팀 결과 |
-| 김태빈 담당 영역 | Wazuh 호스트 로그 연동, Graylog 탐지 규칙, n8n 이벤트·Ticket 흐름 연동 및 확장, AI-XDR 연결과 시나리오 검증 | 프로젝트 참여자가 제공한 역할 정보와 작업 기록을 기준으로 설명 |
-| 공동·연동 영역 | 포털 이벤트에서 탐지·자동화·분석·관리자 검토로 이어지는 인터페이스 | 기능이 코드에 존재한다는 사실만으로 개인 작성자를 단정하지 않음 |
+| 포털·데이터 | Flask 업무 포털, MySQL, 인증·인가, AI Assistant와 관리자 기능 | 보안 이벤트가 외부 탐지 파이프라인에 전달되도록 로그 필드와 연동 흐름을 다룸 |
+| Wazuh | Agent·Manager 기반 호스트 로그 수집·전달 | Manager syslog 전달 설정과 적용용 Wazuh 설정 자료를 구성하고 Graylog 연동을 확인 |
+| Graylog | Stream, Event Definition, 알림을 이용한 중앙 탐지 | R1–R12 규칙 구성·운영, 이벤트 필드 및 탐지 조건 연계, 시나리오별 원본 로그와 경보 확인 |
+| n8n | Webhook 기반 Ticket 및 AI-XDR 자동화 | Graylog 알림 정규화, Ticket 생성·병합, AI-XDR API 전달과 결과 후처리 흐름을 연결 |
+| AI-XDR | 이벤트 상관 분석, 정책 평가, 관리자 검토·승인 | provider 실행·응답 검증 문제를 추적하고 이벤트부터 assessment 및 후속 알림까지 검증 |
 
-팀 구성은 4명입니다. 현재 확인 가능한 자료만으로 모든 팀원의 개인별 담당표를 확정하지 않았으므로, 다른 팀원의 이름이나 개인 성과를 임의로 배정하지 않습니다. 앱·DB·AI Agent를 포함한 팀 기능을 김태빈 단독 구현으로 표현하지 않습니다.
+팀은 4명이며 포털, 데이터, AI Agent, 관리자 화면을 포함한 전체 구현은 공동 결과입니다. 위 표는 김태빈이 맡아 연결·검증한 보안 이벤트 파이프라인을 구분해 보여 줍니다.
 
-## 김태빈이 맡은 보안 이벤트 파이프라인
+## Wazuh: 호스트 로그를 Graylog로 전달
 
-### Wazuh 로그 연동
+Wazuh는 호스트 로그를 수집하고 선택된 경보를 중앙 관제에 전달하는 역할을 합니다. 포털의 로그인·AI Tool 권한 이벤트는 포털 애플리케이션이 직접 생성하며, 모든 R1–R12 로그를 Wazuh가 만드는 구조는 아닙니다.
 
-Wazuh Agent/Manager를 이용한 호스트 로그 수집 경로와 설정 자료를 다뤘습니다. 포털에서 직접 만들어지는 로그인·AI Tool 권한 거부 이벤트까지 Wazuh가 생성한다고 설명하지 않습니다.
+Manager syslog 템플릿은 Graylog 주소의 UDP 5140으로 Wazuh rule 550, 553, 554 경보를 전달하도록 구성되어 있습니다. Agent 설정 템플릿과 export/import 스크립트를 함께 정리해 적용 절차를 재현할 수 있도록 했습니다.
 
-관련 자료: [Wazuh export](../../security_migration/export/wazuh/), [이벤트 기록 코드](../../app/security.py)
+관련 자료: [Wazuh 설정 템플릿](../../security_migration/export/wazuh/), [Wazuh 적용·내보내기 스크립트](../../security_migration/scripts/)
 
-### Graylog 탐지 규칙
+## Graylog: R1–R12 탐지 운영
 
-Graylog input, stream, Event Definition을 통해 R1–R12 탐지 규칙을 운영하는 흐름을 구성·연동했습니다. 최종 시연 환경에서 12개 규칙을 운영했다는 사실은 참여자 제공 정보입니다. 이 문서에서는 그 사실을 개별 12개 규칙의 실측 PASS로 확대하지 않습니다.
+Graylog Input으로 로그를 받고, Stream과 Event Definition으로 인증·AI Agent·서비스 요청을 규칙별로 탐지하도록 구성했습니다. 최종 시연 환경에서 R1–R12 12개 규칙을 운영했으며, 각 규칙의 목적과 처리 신호는 [탐지 규칙 문서](03-detection-catalog.md)에 정리했습니다.
 
-관련 자료: [기본 export](../../security_migration/export/graylog/), [재현 snapshot](../../repro-package/NEXUS-WORK-REPRO-2026-11-09/graylog/)
+탐지는 이벤트 필드에 의존하므로 앱 로그의 event_type, decision, user, role, src_ip, resource와 같은 필드가 Graylog query 및 group-by에 전달되는지 확인하는 작업도 수행했습니다.
 
-### n8n과 AI-XDR 연결
+관련 자료: [Graylog export](../../security_migration/export/graylog/), [Graylog 적용 스크립트](../../security_migration/scripts/import_graylog.ps1), [공개용 규칙 화면](assets/graylog-rules.webp)
 
-Graylog Event 전달, 필드 정리, Ticket 생성·병합, AI-XDR events/process 호출과 결과 후처리를 연결하는 작업을 맡았습니다. 최종 운영 workflow의 Published 상태는 참여자 제공 사실이며, 특정 execution 성공은 개별 실행 증거로 판단합니다.
+## n8n: 경보를 Ticket과 AI-XDR로 연결
 
-관련 코드·재현 자료: [AI-XDR API](../../app/internal_api.py), [n8n 재현 안내](../../repro-package/NEXUS-WORK-REPRO-2026-11-09/n8n/README.md)
+최종 운영 n8n workflow는 Published 상태로 사용했습니다. Graylog 알림이 들어오면 필요한 필드를 정리하고 Ticket을 생성하거나 기존 Ticket과 연결합니다. 이어 AI-XDR events/process API로 분석을 요청하고, 반환된 assessment와 Ticket 정보를 후속 처리 및 알림에 사용합니다.
 
-### 시나리오 검증과 문제 분석
+관련 자료: [workflow 전체 화면](assets/workflow.webp), [재현용 n8n 패키지 안내](../../repro-package/NEXUS-WORK-REPRO-2026-11-09/n8n/README.md), [내부 API](../../app/internal_api.py)
 
-대표적으로 R8 합성 404 시나리오를 로컬 재현 환경에서 끝단까지 확인한 기록이 있습니다. R3는 AI 모델의 Tool 선택과 서버 측 권한 거부를 구분하고, 원본 로그·Graylog Event·n8n 전달이 각각 확인되어야 함을 분석했습니다.
+## AI-XDR: 분석 결과와 정책 검토
 
-실측 범위와 한계는 [검증과 문제 해결](06-validation-and-troubleshooting.md)에 모았습니다.
+AI-XDR 이벤트 처리와 평가 API를 n8n Ticket 흐름에 연결했습니다. 평가에는 verdict, threat_score, confidence, reasoning, recommended_actions가 포함되며, 서버 정책은 승인 가능 여부와 대응 상태를 별도로 계산합니다.
 
-## 기술적 판단과 배운 점
+최종 운영 설정은 auto provider이며 Groq를 우선하고 NVIDIA, Ollama를 순서대로 fallback할 수 있습니다. AI Chat은 별도의 provider 설정을 사용합니다. provider 장애 시 REVIEW fallback을 확인하고, 모델 응답의 JSON 및 strict schema 검증과 진단 로그를 통해 원인을 추적했습니다.
 
-- 로그를 만드는 애플리케이션, 호스트 로그를 수집하는 Wazuh, Event를 만드는 Graylog의 역할을 구분해야 합니다.
-- 탐지 경보가 발생했다는 사실과 공격 성공, 높은 AI 위험 점수는 서로 다른 결과입니다.
-- AI의 Tool 선택과 서버의 권한 검사를 분리해야 모델이 선택한 요청을 실제 권한으로 오인하지 않습니다.
-- 서로 다른 DB의 numeric ID는 직접 연결할 수 없을 수 있으므로 외부 Ticket 표시 ID를 correlation key로 보존해야 합니다.
-- timeout을 늘리면 앞단의 조기 종료는 완화할 수 있지만, 느린 AI 분석 자체가 빨라지는 것은 아닙니다.
+관련 코드: [AI-XDR 처리](../../app/ai_xdr.py), [설정](../../app/config.py), [events/process API](../../app/internal_api.py)
 
-## 근거
+## 실제 검증 경험
 
-- [Flask app registration](../../app/__init__.py)
-- [Security event logger](../../app/security.py)
+- R3: 직원 계정의 보호 Tool 요청이 서버 권한 검사에서 DENY되고, Graylog 경보·n8n 후속 처리·AI-XDR 평가·관리자 승인 흐름으로 이어지는 시연을 진행했습니다.
+- R8: 합성 404 요청으로 Graylog 탐지부터 n8n Ticket, AI-XDR assessment까지 로컬 재현 환경에서 확인했습니다.
+- AI-XDR 지연: /process 504를 앞단 대기 제한과 provider별 추론 시간으로 분리해 조사하고 조치했습니다.
+
+상세한 결과와 문제 해결 과정은 [검증과 문제 해결](06-validation-and-troubleshooting.md)에 있습니다.
+
+## 배운 점
+
+- 원본 로그, Graylog Event, Notification, n8n execution, AI-XDR assessment를 각 단계에서 확인해야 장애 지점을 좁힐 수 있습니다.
+- AI의 자연어 거절은 서버 권한 거부와 다릅니다. 서버에서 Tool 권한을 다시 검사해야 실제 접근을 막고 감사 이벤트를 남길 수 있습니다.
+- Ticket 병합 기간, n8n 실행 간격, AI-XDR 처리 window는 서로 다른 시간 설정입니다.
+- AI provider의 응답속도와 실패 처리가 n8n 후속 자동화까지 영향을 주므로 provider와 요청 시간을 함께 추적해야 합니다.
+
+## 코드와 설정 근거
+
+- [보안 이벤트 logger](../../app/security.py)
 - [AI Tool 권한 검사](../../app/ai_tools.py)
-- [AI-XDR 처리](../../app/ai_xdr.py)
+- [AI Chat provider 및 Tool 선택](../../app/ai.py)
+- [AI-XDR 평가·정책](../../app/ai_xdr.py)
 - [내부 API](../../app/internal_api.py)
-- [Incident 경로](../../app/incidents.py)
+- [Wazuh 설정 자료](../../security_migration/export/wazuh/)
+- [Graylog 설정 자료](../../security_migration/export/graylog/)
