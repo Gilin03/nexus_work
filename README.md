@@ -2,6 +2,7 @@
 
 **NEXUS WORK**는 사내 업무 포털에서 발생하는 보안 이벤트를 수집·탐지하고, 사건 단위 분석과 관리자 대응으로 연결한 4인 팀 보안관제 프로젝트입니다. 최종 시연 환경에서 Graylog R1–R12 규칙과 Published n8n workflow를 운영하며 로그 수집부터 AI-XDR 평가와 대응 검토까지의 흐름을 구축했습니다.
 
+
 <p align="center">
   <a href="https://nexus-work-portfolio-site.vercel.app">
     <img src="docs/portfolio/assets/workflow.webp" alt="Graylog 이벤트를 Ticket 처리와 AI-XDR 분석, 후속 알림으로 연결한 n8n workflow" width="100%">
@@ -12,10 +13,23 @@
 <p align="center">
   <a href="https://nexus-work-portfolio-site.vercel.app"><strong>웹 포트폴리오</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://app.notion.com/p/3fed401b317c800f9315ce6521b41177">Notion 프로젝트 기록</a>
+  <a href="https://app.notion.com/p/v3-413d401b317c813b90ded756a4458810?pvs=12">Notion 프로젝트 기록</a>
   &nbsp;·&nbsp;
   <a href="docs/portfolio/README.md">기술 문서</a>
 </p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=flat&amp;logo=python&amp;logoColor=white" alt="Python" height="20">
+  <img src="https://img.shields.io/badge/Flask-303030?style=flat&amp;logo=flask&amp;logoColor=white" alt="Flask" height="20">
+  <img src="https://img.shields.io/badge/MySQL-4479A1?style=flat&amp;logo=mysql&amp;logoColor=white" alt="MySQL" height="20">
+  <img src="https://img.shields.io/badge/Wazuh-536E87?style=flat" alt="Wazuh" height="20">
+  <img src="https://img.shields.io/badge/Graylog-D4514D?style=flat&amp;logo=graylog&amp;logoColor=white" alt="Graylog" height="20">
+  <img src="https://img.shields.io/badge/Suricata-A9453F?style=flat" alt="Suricata" height="20">
+  <img src="https://img.shields.io/badge/pfSense-C9522D?style=flat&amp;logo=pfsense&amp;logoColor=white" alt="pfSense" height="20">
+  <img src="https://img.shields.io/badge/n8n-C64A68?style=flat&amp;logo=n8n&amp;logoColor=white" alt="n8n" height="20">
+  <img src="https://img.shields.io/badge/AI--XDR-55657A?style=flat" alt="AI-XDR" height="20">
+</p>
+
 
 ## 프로젝트 소개
 
