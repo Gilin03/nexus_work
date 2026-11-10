@@ -1,0 +1,19 @@
+{
+  "evidence_type": "sanitized extract from a saved local synthetic end-to-end run",
+  "recorded_at": "2026-11-09",
+  "source_manifest": "../../../repro-package/NEXUS-WORK-REPRO-2026-11-09/manifest.json",
+  "scenario": "30 TEST-NET 404 requests",
+  "graylog_r8_event": "confirmed in the saved manifest",
+  "n8n_ticket_and_event_processing": "confirmed in the saved manifest",
+  "ai_xdr_process_processed": 1,
+  "assessment": {
+    "rule_id": "R8",
+    "verdict": "BENIGN",
+    "threat_score": 10,
+    "confidence": 0.8,
+    "status": "NO_ACTION"
+  },
+  "ip_blocked": false,
+  "account_locked": false,
+  "scope": "One local synthetic scenario only. This extract omits the original execution, ticket, assessment, source path, and IP identifiers."
+}
